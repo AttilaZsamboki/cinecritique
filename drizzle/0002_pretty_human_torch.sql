@@ -1,0 +1,1 @@
+ALTER TABLE "cinecritique_movie" ADD COLUMN "genre" text;

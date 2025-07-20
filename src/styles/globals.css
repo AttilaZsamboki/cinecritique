@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+
+                          @container(max-width:120px){.table-5064def8-fe13-4272-ba13-5f91e8b53a99-column-120{display: none;}}
+                @container(max-width:240px){.table-5064def8-fe13-4272-ba13-5f91e8b53a99-column-240{display: none;}}
+                @container(max-width:360px){.table-5064def8-fe13-4272-ba13-5f91e8b53a99-column-360{display: none;}}
+                @container(max-width:480px){.table-5064def8-fe13-4272-ba13-5f91e8b53a99-column-480{display: none;}}
+
+                          @container(max-width:120px){.table-4b71dd59-20ab-4d2f-97c8-6e3885901538-column-120{display: none;}}
+                @container(max-width:240px){.table-4b71dd59-20ab-4d2f-97c8-6e3885901538-column-240{display: none;}}
+                @container(max-width:360px){.table-4b71dd59-20ab-4d2f-97c8-6e3885901538-column-360{display: none;}}
+                @container(max-width:480px){.table-4b71dd59-20ab-4d2f-97c8-6e3885901538-column-480{display: none;}}
