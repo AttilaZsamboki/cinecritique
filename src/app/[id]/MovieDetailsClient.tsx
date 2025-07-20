@@ -121,7 +121,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 </div>
               </div>
             </div>
-            {mainCriteria.map(main => (
+            {mainCriteria.sort((a, b) => (b.weight??0) - (a.weight ??0)).map(main => (
               <div key={main.id}>
                 <div className="@container">
                   <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">

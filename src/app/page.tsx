@@ -105,7 +105,7 @@ export default async function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {movies.filter(m => m.type === 'movie').map((movie) => (
+                    {movies.sort((a, b) => (movieWeightedAverages[b.id] ?? 0) - (movieWeightedAverages[a.id]??0)).filter(m => m.type === 'movie').map((movie) => (
                       <tr key={movie.id} className="border-t border-t-[#e7d0d1]">
                       <td className="table-4b71dd59-20ab-4d2f-97c8-6e3885901538-column-120 h-[72px] px-4 py-2 w-[400px] text-[#1b0e0e] text-sm font-normal leading-normal">
                           {movie.title}

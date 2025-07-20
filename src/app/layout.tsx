@@ -17,6 +17,8 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
+export const dynamic = "force-dynamic";
+
 function Navbar() {
   return (
     <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f3e7e8] px-10 py-3">
