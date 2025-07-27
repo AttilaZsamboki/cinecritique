@@ -1,6 +1,11 @@
 "use client";
 import Link from "next/link";
 import { api } from "~/trpc/react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip"
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   // Fetch all data via tRPC
@@ -142,7 +147,14 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                   <div className="@container" key={sub.id}>
                     <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
                       <div className="flex w-full shrink-[3] items-center justify-between">
-                        <p className="text-[#1b0e0e] text-base font-medium leading-normal">{sub.name}</p>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                              <p className="text-[#1b0e0e] cursor-pointer text-base font-medium leading-normal">{sub.name}</p>
+                            </TooltipTrigger>
+                            <TooltipContent >
+                              {sub.description}
+                            </TooltipContent>
+                        </Tooltip>
                         <div className="flex items-center gap-2">
                           <StarInput value={subAverages[sub.id] ?? 0} onChange={v => upsertScore.mutate({ movieId: movie.id, criteriaId: sub.id, score: v })} />
                           <span className="text-[#1b0e0e] text-sm font-normal leading-normal">{subAverages[sub.id] ?? '-'}</span>
