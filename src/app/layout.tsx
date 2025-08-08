@@ -34,6 +34,7 @@ function Navbar() {
           <Link className="text-[#1b0e0e] text-sm font-medium leading-normal" href="/">Explore</Link>
           <Link className="text-[#1b0e0e] text-sm font-medium leading-normal" href="/">Lists</Link>
           <Link className="text-[#1b0e0e] text-sm font-medium leading-normal" href="/criteria">Criteria</Link>
+          <Link className="text-[#1b0e0e] text-sm font-medium leading-normal" href="/best-of">Best Of</Link>
         </div>
         <button
           className="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 bg-[#f3e7e8] text-[#1b0e0e] gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5"

@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip"
+import { useMemo, useState } from "react";
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   // Fetch all data via tRPC
@@ -14,6 +15,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   const { data: evaluations = [] } = api.movie.getEvaluationsByMovie.useQuery({ movieId });
   const evalIds = evaluations.map(e => e.id);
   const { data: scores = [] } = api.movie.getScoresByEvaluationIds.useQuery({ evalIds });
+  const { data: bestOfAll = [] } = api.movie.getBestOfForAll.useQuery();
 
   const utils = api.useUtils();
   const upsertScore = api.movie.upsertEvaluationScore.useMutation({
@@ -21,6 +23,34 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       utils.movie.getScoresByEvaluationIds.invalidate({ evalIds }).catch(() => console.log(""));
     },
   });
+  const setBestOf = api.movie.setBestOf.useMutation({
+    onSuccess: async () => {
+      await utils.movie.getBestOfForAll.invalidate();
+    },
+  });
+  const updatePoster = api.movie.updateMoviePoster.useMutation({
+    onSuccess: async () => {
+      await utils.movie.getById.invalidate({ id: movieId });
+    },
+  });
+
+  const [confirm, setConfirm] = useState<{
+    criteriaId: string,
+    currentBestMovieId?: string,
+    currentBestClipUrl?: string,
+    clipUrlInput?: string,
+  } | null>(null);
+  const currentBestByCriteria: Record<string, {movieId: string, clipUrl?: string}> = {};
+  for (const b of bestOfAll) {
+    if (b.criteriaId && b.movieId) currentBestByCriteria[b.criteriaId] = { movieId: b.movieId, clipUrl: b.clipUrl ?? undefined };
+  }
+
+  const criteriaById = useMemo(() => Object.fromEntries(allCriteria.map(c => [c.id, c] as const)), [allCriteria]);
+  const currentBestMovieId = confirm?.currentBestMovieId;
+  const { data: currentBestMovie } = api.movie.getById.useQuery(
+    { id: currentBestMovieId ?? "" },
+    { enabled: !!currentBestMovieId }
+  );
 
   // Loading state
   if (movieLoading || criteriaLoading) return <div>Loading...</div>;
@@ -110,6 +140,37 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
             <div className="flex flex-wrap justify-between gap-3 p-4">
               <p className="text-[#1b0e0e] tracking-light text-[32px] font-bold leading-tight min-w-72">Review: {movie.title}</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  placeholder="Poster URL"
+                  className="h-8 w-72 rounded border border-[#e7d0d1] px-2 text-sm"
+                  defaultValue={movie.posterUrl ?? ""}
+                  onBlur={(e) => {
+                    const val = e.currentTarget.value.trim();
+                    if (!val || val === movie.posterUrl) return;
+                    try {
+                      new URL(val);
+                      updatePoster.mutate({ id: movie.id, posterUrl: val });
+                    } catch {}
+                  }}
+                />
+                <button
+                  className="h-8 rounded px-2 text-sm bg-[#f3e7e8]"
+                  onClick={async () => {
+                    try {
+                      const title = movie.title ?? "";
+                      const year = String(movie.year ?? "");
+                      if (!title) return;
+                      const res = await fetch(`/api/omdb?t=${encodeURIComponent(title)}${year ? `&y=${encodeURIComponent(year)}` : ''}`);
+                      const data = (await res.json()) as unknown as { Poster?: string };
+                      if (data?.Poster && data.Poster !== 'N/A') {
+                        updatePoster.mutate({ id: movie.id, posterUrl: data.Poster });
+                      }
+                    } catch { /* noop */ }
+                  }}
+                >Fetch Poster</button>
+              </div>
             </div>
             <div className="@container">
               <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
@@ -158,6 +219,19 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                         <div className="flex items-center gap-2">
                           <StarInput value={subAverages[sub.id] ?? 0} onChange={v => upsertScore.mutate({ movieId: movie.id, criteriaId: sub.id, score: v })} />
                           <span className="text-[#1b0e0e] text-sm font-normal leading-normal">{subAverages[sub.id] ?? '-'}</span>
+                          <button
+                            onClick={() => {
+                              const current = currentBestByCriteria[sub.id];
+                              setConfirm({ 
+                                criteriaId: sub.id,
+                                currentBestMovieId: current?.movieId,
+                                currentBestClipUrl: current?.clipUrl,
+                              });
+                            }}
+                            className="ml-3 rounded px-2 py-1 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium"
+                          >
+                            Make Best
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -186,6 +260,50 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           </div>
         </div>
       </div>
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[520px] rounded-lg bg-white p-5">
+            <h4 className="text-lg font-bold mb-2">Confirm Best-in-Category</h4>
+            {(() => {
+              const best = currentBestByCriteria[confirm.criteriaId];
+              const subName = criteriaById[confirm.criteriaId]?.name ?? "this category";
+              if (!best) return (
+                <>
+                  <p className="text-sm text-[#1b0e0e] mb-3">Are you sure you think {movie.title} has the best {subName}? This will set the first title holder.</p>
+                </>
+              );
+              return (
+                <div className="mb-3">
+                  <p className="text-sm text-[#1b0e0e] mb-2">Are you sure you think {movie.title} has better {subName} than {currentBestMovie?.title ?? "the current holder"}?</p>
+                  {confirm.currentBestClipUrl ? (
+                    <video className="w-full rounded" controls src={`/api/video-proxy?url=${encodeURIComponent(confirm.currentBestClipUrl)}`} />
+                  ) : null}
+                </div>
+              );
+            })()}
+            <div className="mb-3">
+              <label className="block text-sm mb-1 text-[#1b0e0e]">Optional: Add a clip URL to justify this pick</label>
+              <input
+                className="w-full rounded border border-[#e7d0d1] px-2 py-1 text-sm"
+                placeholder="https://..."
+                value={confirm.clipUrlInput ?? ""}
+                onChange={(e) => setConfirm({ ...confirm, clipUrlInput: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded bg-[#f3e7e8]" onClick={() => setConfirm(null)}>Cancel</button>
+              <button
+                className="px-3 py-2 rounded bg-[#e92932] text-white"
+                onClick={() => {
+                  if (!confirm) return;
+                  setBestOf.mutate({ criteriaId: confirm.criteriaId, movieId: movie.id, clipUrl: confirm.clipUrlInput });
+                  setConfirm(null);
+                }}
+              >Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

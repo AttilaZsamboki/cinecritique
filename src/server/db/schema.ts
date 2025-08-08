@@ -29,6 +29,7 @@ export const movie = createTable("movie", (d) => ({
   type: d.text("type"),
   year: d.integer("year"),
   genre: d.text("genre"), // new genre column
+  posterUrl: d.text("poster_url"),
 }));
 
 export const evaluation = createTable("evaluation", (d) => ({
@@ -42,4 +43,13 @@ export const evaluationScore = createTable("evaluation_score", (d) => ({
   evaluationId: d.text("evaluation_id").references(() => evaluation.id),
   criteriaId: d.text("criteria_id").references(() => criteria.id),
   score: d.numeric("score", { precision: 2, scale: 1 }), // 0-5, 0.5 increments
+}));
+
+// Stores the user's current "best in category" pick per sub-criteria
+export const bestOf = createTable("best_of", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  criteriaId: d.text("criteria_id").references(() => criteria.id),
+  movieId: d.text("movie_id").references(() => movie.id),
+  clipUrl: d.text("clip_url"),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
 }));

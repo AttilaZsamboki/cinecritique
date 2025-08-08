@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { evaluation, evaluationScore } from "~/server/db/schema";
+import { bestOf, evaluation, evaluationScore } from "~/server/db/schema";
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { sql } from "drizzle-orm";
@@ -41,6 +41,30 @@ export const movieRouter = createTRPCRouter({
       }
       return { success: true };
     }),
+  // Best-of endpoints
+  setBestOf: publicProcedure
+    .input(z.object({ criteriaId: z.string(), movieId: z.string(), clipUrl: z.string().optional().nullable() }))
+    .mutation(async ({ input }) => {
+      // Upsert one global best for the criteria
+      const existing = await db.query.bestOf.findFirst({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+      if (existing) {
+        await db.update(bestOf)
+          .set({ movieId: input.movieId, clipUrl: input.clipUrl ?? null })
+          .where(sql`id = ${existing.id}`);
+      } else {
+        await db.insert(bestOf).values({ criteriaId: input.criteriaId, movieId: input.movieId, clipUrl: input.clipUrl ?? null });
+      }
+      return { success: true };
+    }),
+  getBestOfForAll: publicProcedure
+    .query(async () => {
+      return db.select().from(bestOf);
+    }),
+  getBestOfForCriteria: publicProcedure
+    .input(z.object({ criteriaId: z.string() }))
+    .query(async ({ input }) => {
+      return db.query.bestOf.findFirst({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+    }),
   updateCriteriaWeight: publicProcedure
     .input(z.object({ id: z.string(), weight: z.number().min(0).max(100) }))
     .mutation(async ({ input }) => {
@@ -70,9 +94,18 @@ export const movieRouter = createTRPCRouter({
       return db.query.evaluationScore.findMany({ where: (s, { inArray }) => inArray(s.evaluationId, input.evalIds) });
     }),
   createMovie: publicProcedure
-    .input(z.object({ title: z.string().optional().nullable(), year: z.number().optional().nullable(), genre: z.string().optional().nullable(), type: z.string().optional().nullable()}))
+    .input(z.object({ title: z.string().optional().nullable(), year: z.number().optional().nullable(), genre: z.string().optional().nullable(), type: z.string().optional().nullable(), posterUrl: z.string().url().optional().nullable()}))
     .mutation(async ({ input }) => {
       return db.insert(movie).values(input).returning()
     }
     )
+  ,
+  updateMoviePoster: publicProcedure
+    .input(z.object({ id: z.string(), posterUrl: z.string().url().optional().nullable() }))
+    .mutation(async ({ input }) => {
+      await db.update(movie)
+        .set({ posterUrl: input.posterUrl ?? null })
+        .where(sql`id = ${input.id}`);
+      return { success: true };
+    })
 });

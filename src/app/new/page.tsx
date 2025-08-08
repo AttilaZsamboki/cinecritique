@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 import { api } from "~/trpc/server"
+import { revalidatePath } from "next/cache"
+import PosterUrlField from "./PosterUrlField"
 
 export default function Page() {
   async function create(formData: FormData) {
@@ -8,10 +10,12 @@ export default function Page() {
       type: formData.get("type") as string,
       year: parseInt((formData.get("year") ?? "") as string),
       genre: formData.get("genre") as string,
-      title: formData.get("title") as string
+      title: formData.get("title") as string,
+      posterUrl: (formData.get("posterUrl") as string) || undefined,
     }
     const movie = await api.movie.createMovie(rawFormData)
     if (!movie) return;
+    revalidatePath("/")
     redirect("/"+movie[0]?.id)
   }
     return (
@@ -22,6 +26,7 @@ export default function Page() {
               <label className="flex flex-col min-w-40 flex-1">
                 <p className="text-[#191011] text-base font-medium leading-normal pb-2">Title</p>
                 <input
+                  id="title-input"
                   placeholder="Enter movie title"
                   name="title"
                   className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
@@ -42,6 +47,7 @@ export default function Page() {
               <label className="flex flex-col min-w-40 flex-1">
                 <p className="text-[#191011] text-base font-medium leading-normal pb-2">Release Year</p>
                 <input
+                  id="year-input"
                   placeholder="Enter release year"
                   className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
                   type="number"
@@ -58,6 +64,9 @@ export default function Page() {
                   name="genre"
                 />
               </label>
+            </div>
+            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
+              <PosterUrlField />
             </div>
             <div className="flex px-4 py-3 justify-end">
               <button
