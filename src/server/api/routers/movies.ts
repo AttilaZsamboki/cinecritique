@@ -73,6 +73,14 @@ export const movieRouter = createTRPCRouter({
         .where(sql`id = ${input.id}`);
       return { success: true };
     }),
+  updateCriteriaWeights: publicProcedure
+    .input(z.object({ updates: z.array(z.object({ id: z.string(), weight: z.number().min(0).max(100) })) }))
+    .mutation(async ({ input }) => {
+      for (const u of input.updates) {
+        await db.update(criteria).set({ weight: u.weight }).where(sql`id = ${u.id}`);
+      }
+      return { success: true };
+    }),
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
@@ -81,6 +89,67 @@ export const movieRouter = createTRPCRouter({
   getAllCriteria: publicProcedure
     .query(async () => {
       return db.select().from(criteria);
+    }),
+  createCriteria: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      description: z.string().optional().nullable(),
+      weight: z.number().min(0).max(100).default(0),
+      parentId: z.string().optional().nullable(),
+      position: z.number().int().min(0).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const siblingCount = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.parentId ?? null) });
+      const pos = input.position ?? siblingCount.length;
+      const [row] = await db.insert(criteria).values({
+        name: input.name,
+        description: input.description ?? null,
+        weight: input.weight,
+        parentId: input.parentId ?? null,
+        position: pos,
+      }).returning();
+      return row;
+    }),
+  updateCriteria: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1).optional(),
+      description: z.string().optional().nullable(),
+      weight: z.number().min(0).max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.update(criteria)
+        .set({
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          ...(input.weight !== undefined ? { weight: input.weight } : {}),
+        })
+        .where(sql`id = ${input.id}`);
+      return { success: true };
+    }),
+  deleteCriteria: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      // Delete all sub-criteria first (cascade manually)
+      const subs = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.id) });
+      for (const s of subs) {
+        await db.delete(criteria).where(sql`id = ${s.id}`);
+      }
+      await db.delete(criteria).where(sql`id = ${input.id}`);
+      return { success: true };
+    }),
+  reorderCriteria: publicProcedure
+    .input(z.object({
+      parentId: z.string().optional().nullable(),
+      orderedIds: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      // Assign position by index in orderedIds
+      for (let i = 0; i < input.orderedIds.length; i++) {
+        const id = input.orderedIds[i];
+        await db.update(criteria).set({ position: i, parentId: input.parentId ?? null }).where(sql`id = ${id}`);
+      }
+      return { success: true };
     }),
   getEvaluationsByMovie: publicProcedure
     .input(z.object({ movieId: z.string() }))

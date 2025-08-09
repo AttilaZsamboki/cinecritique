@@ -1,0 +1,1 @@
+ALTER TABLE "cinecritique_criteria" ADD COLUMN "position" integer;

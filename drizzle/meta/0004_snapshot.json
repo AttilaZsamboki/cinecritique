@@ -1,9 +1,81 @@
 {
-  "id": "4f419194-1633-4c74-82f0-660fb8ab947e",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "0be6cf0a-8a33-410f-b0ef-3fe1143c3c5d",
+  "prevId": "9e9e967a-228c-4d00-a525-b009c41a3b5e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.cinecritique_best_of": {
+      "name": "cinecritique_best_of",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "criteria_id": {
+          "name": "criteria_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "movie_id": {
+          "name": "movie_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "clip_url": {
+          "name": "clip_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cinecritique_best_of_criteria_id_cinecritique_criteria_id_fk": {
+          "name": "cinecritique_best_of_criteria_id_cinecritique_criteria_id_fk",
+          "tableFrom": "cinecritique_best_of",
+          "tableTo": "cinecritique_criteria",
+          "columnsFrom": [
+            "criteria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cinecritique_best_of_movie_id_cinecritique_movie_id_fk": {
+          "name": "cinecritique_best_of_movie_id_cinecritique_movie_id_fk",
+          "tableFrom": "cinecritique_best_of",
+          "tableTo": "cinecritique_movie",
+          "columnsFrom": [
+            "movie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.cinecritique_criteria": {
       "name": "cinecritique_criteria",
       "schema": "",
@@ -12,7 +84,8 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "name": {
           "name": "name",
@@ -29,6 +102,18 @@
         "weight": {
           "name": "weight",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
@@ -49,7 +134,8 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "movie_id": {
           "name": "movie_id",
@@ -94,7 +180,8 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "evaluation_id": {
           "name": "evaluation_id",
@@ -110,7 +197,7 @@
         },
         "score": {
           "name": "score",
-          "type": "integer",
+          "type": "numeric(2, 1)",
           "primaryKey": false,
           "notNull": false
         }
@@ -158,7 +245,8 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "title": {
           "name": "title",
@@ -175,6 +263,18 @@
         "year": {
           "name": "year",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "genre": {
+          "name": "genre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "poster_url": {
+          "name": "poster_url",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }

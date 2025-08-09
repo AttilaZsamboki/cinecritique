@@ -19,6 +19,7 @@ export const criteria = createTable(
     name: d.text("name"),
     description: d.text("description"),
     weight: d.integer("weight"),
+    position: d.integer("position"),
     parentId: d.text("parent_id"), // nullable, self-referencing (no .references() to avoid linter error)
   })
 );

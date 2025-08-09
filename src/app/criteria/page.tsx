@@ -1,11 +1,29 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export default function CriteriaPage() {
   const { data: allCriteria = [], isLoading } = api.movie.getAllCriteria.useQuery();
   const utils = api.useUtils();
   const updateWeight = api.movie.updateCriteriaWeight.useMutation();
+  const updateWeightsBulk = api.movie.updateCriteriaWeights.useMutation({
+    onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
+  });
+  const createCriteria = api.movie.createCriteria.useMutation({
+    onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
+  });
+  const updateCriteria = api.movie.updateCriteria.useMutation({
+    onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
+  });
+  const deleteCriteria = api.movie.deleteCriteria.useMutation({
+    onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
+  });
+  const reorderCriteria = api.movie.reorderCriteria.useMutation({
+    onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
+  });
 
   // Local state for weights (optimistic UI)
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -39,62 +57,157 @@ export default function CriteriaPage() {
     );
   };
 
-  if (isLoading) return <div>Loading...</div>;
+  const mainCriteria = useMemo(() => allCriteria.filter(c => !c.parentId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [allCriteria]);
+  const subCriteria = useMemo(() => allCriteria.filter(c => c.parentId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [allCriteria]);
+  const isLoadingNow = isLoading;
 
-  const mainCriteria = allCriteria.filter(c => !c.parentId);
-  const subCriteria = allCriteria.filter(c => c.parentId);
+  // DnD setup (hooks must be unconditional)
+  const sensors = useSensors(useSensor(PointerSensor));
+
+  function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+    const style: React.CSSProperties = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
+    );
+  }
+
+  if (isLoadingNow) {
+    return <div className="px-4 sm:px-8 lg:px-40 py-8">Loading...</div>;
+  }
 
   return (
-    <div className="px-40 flex flex-1 justify-center py-5">
-          <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
-            <div className="flex flex-wrap justify-between gap-3 p-4">
-              <div className="flex min-w-72 flex-col gap-3">
-                <p className="text-[#1b0e0e] tracking-light text-[32px] font-bold leading-tight">Evaluation Criteria</p>
-                <p className="text-[#994d51] text-sm font-normal leading-normal">Explore the criteria used to evaluate movies and TV series.</p>
-              </div>
-            </div>
-            {mainCriteria.sort((a, b) => (b.weight??0) - (a.weight??0)).map(main => (
-             <>
-            <div className="flex flex-row justify-between w-full items-center pr-5">
-            <h3 key={main.id} className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">{main.name}</h3>
-            <span 
-                    className="w-16 border rounded px-2 py-1 text-sm text-[#994d51] flex flex-row"
-            >
-            <input
-                    min={0}
-                    max={100}
-                     value={weights[main.id] ?? 0}
-                    onChange={e => handleWeightChange(main.id, Number(e.target.value))}
-                    className="border-0 w-10 padding-0 outline-none"
-                  />
-            %
-            </span>
-            </div>
-            <div key={main.id + "1"} className="p-4 grid grid-cols-[20%_1fr] gap-x-6">
-                              {subCriteria.sort((a, b) => (b.weight??0) - (a.weight??0)).filter(sc => sc.parentId === main.id).map(sub => (
-              <div key={sub.id} className="col-span-3 grid grid-cols-subgrid border-t border-t-[#e7d0d1] py-5 pr-1">
-                <p className="text-[#994d51] text-sm font-normal leading-normal">{sub.name}</p>
-                <p className="text-[#1b0e0e] text-sm font-normal leading-normal">{sub.description}</p>
+    <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
+      <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 bg-white/50 backdrop-blur-sm rounded-2xl shadow-sm border border-white/20 mb-6">
+          <div>
+            <h1 className="text-[#1b0e0e] tracking-tight text-3xl sm:text-4xl font-bold leading-tight">Evaluation Criteria</h1>
+            <p className="text-[#6b4a4c] mt-2 text-sm sm:text-base">Manage main and sub-criteria, weights, order and descriptions.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => createCriteria.mutate({ name: "New Group", weight: 0, parentId: null })}
+              className="h-9 rounded-xl px-3 text-sm bg-[#994d51] text-white shadow-sm hover:bg-[#7a3d41] transition-colors"
+            >New Main Criteria</button>
+            <button
+              onClick={() => {
+                const total = mainCriteria.reduce((sum, m) => sum + (weights[m.id] ?? 0), 0);
+                const updates = mainCriteria.map((m) => ({ id: m.id, weight: total > 0 ? Math.round(((weights[m.id] ?? 0) / total) * 100) : Math.round(100 / Math.max(1, mainCriteria.length)) }));
+                // Ensure sum is exactly 100 by adjusting the largest
+                const sum = updates.reduce((s, u) => s + u.weight, 0);
+                if (sum !== 100 && updates.length > 0) {
+                  const idx = updates.reduce((imax, u, i, arr) => (u.weight > arr[imax]!.weight ? i : imax), 0);
+                  updates[idx] = { ...updates[idx]!, weight: updates[idx]!.weight + (100 - sum) };
+                }
+                updateWeightsBulk.mutate({ updates });
+              }}
+              className="h-9 rounded-xl px-3 text-sm bg-[#f3e7e8] text-[#1b0e0e] shadow-sm hover:bg-[#e7d0d1] transition-colors"
+              title="Normalize main criteria weights so they sum to 100%"
+            >Rebalance Mains to 100%</button>
+          </div>
+        </div>
 
-            <span 
-                    className="w-16 border rounded px-2 py-1 text-sm text-[#994d51] flex flex-row"
-            >
-            <input
-                    min={0}
-                    max={100}
-                     value={weights[sub.id] ?? 0}
-                    onChange={e => handleWeightChange(main.id, Number(e.target.value))}
-                    className="border-0 w-10 padding-0 outline-none"
-                  />
-            %
-            </span>
-              </div>
-                              ))}
+        <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={({ active, over }) => {
+          if (!over || active.id === over.id) return;
+          const ids = mainCriteria.map(c => c.id);
+          const oldIndex = ids.indexOf(String(active.id));
+          const newIndex = ids.indexOf(String(over.id));
+          const newOrder = arrayMove(ids, oldIndex, newIndex);
+          reorderCriteria.mutate({ parentId: null, orderedIds: newOrder });
+        }}>
+          <SortableContext items={mainCriteria.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            {mainCriteria.map(main => (
+              <SortableItem id={main.id} key={main.id}>
+                <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm mb-4">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        className="text-base font-semibold px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                        value={main.name ?? ''}
+                        onChange={(e) => updateCriteria.mutate({ id: main.id, name: e.target.value })}
+                      />
+                      <span className="text-xs text-[#6b4a4c]">Main</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm text-[#6b4a4c]">Weight</label>
+                      <input
+                        type="number" min={0} max={100}
+                        value={weights[main.id] ?? 0}
+                        onChange={e => handleWeightChange(main.id, Number(e.target.value))}
+                        className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
+                      />
+                      <button onClick={() => createCriteria.mutate({ name: "New Sub", weight: 0, parentId: main.id })} className="h-8 rounded-lg px-2 text-sm bg-[#f3e7e8] hover:bg-[#e7d0d1]">Add Sub</button>
+                      <button onClick={() => deleteCriteria.mutate({ id: main.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={({ active, over }) => {
+                      if (!over || active.id === over.id) return;
+                      const subs = subCriteria.filter(s => s.parentId === main.id);
+                      const ids = subs.map(s => s.id);
+                      const oldIndex = ids.indexOf(String(active.id));
+                      const newIndex = ids.indexOf(String(over.id));
+                      const newOrder = arrayMove(ids, oldIndex, newIndex);
+                      reorderCriteria.mutate({ parentId: main.id, orderedIds: newOrder });
+                    }}>
+                      <SortableContext items={subCriteria.filter(s => s.parentId === main.id).map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        {subCriteria.filter(sc => sc.parentId === main.id).map(sub => (
+                          <SortableItem id={sub.id} key={sub.id}>
+                            <div className="grid grid-cols-[20%_1fr_auto] items-start gap-4 border-t border-t-[#e7d0d1] py-3">
+                              <input
+                                className="text-sm font-medium px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                                value={sub.name ?? ''}
+                                onChange={(e) => updateCriteria.mutate({ id: sub.id, name: e.target.value })}
+                              />
+                              <textarea
+                                className="text-sm px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                                placeholder="Description"
+                                value={sub.description ?? ''}
+                                onChange={(e) => updateCriteria.mutate({ id: sub.id, description: e.target.value })}
+                              />
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number" min={0} max={100}
+                                  value={weights[sub.id] ?? 0}
+                                  onChange={e => handleWeightChange(sub.id, Number(e.target.value))}
+                                  className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
+                                />
+                                <button onClick={() => deleteCriteria.mutate({ id: sub.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
+                              </div>
+                            </div>
+                          </SortableItem>
+                        ))}
+                        {subCriteria.filter(sc => sc.parentId === main.id).length > 0 ? (
+                          <div className="flex justify-end pt-3">
+                            <button
+                              onClick={() => {
+                                const subs = subCriteria.filter(sc => sc.parentId === main.id);
+                                const total = subs.reduce((sum, s) => sum + (weights[s.id] ?? 0), 0);
+                                const updates = subs.map((s) => ({ id: s.id, weight: total > 0 ? Math.round(((weights[s.id] ?? 0) / total) * 100) : Math.round(100 / Math.max(1, subs.length)) }));
+                                const sum = updates.reduce((s, u) => s + u.weight, 0);
+                                if (sum !== 100 && updates.length > 0) {
+                                  const idx = updates.reduce((imax, u, i, arr) => (u.weight > arr[imax]!.weight ? i : imax), 0);
+                                  updates[idx] = { ...updates[idx]!, weight: updates[idx]!.weight + (100 - sum) };
+                                }
+                                updateWeightsBulk.mutate({ updates });
+                              }}
+                              className="h-8 rounded-lg px-2 text-sm bg-[#f3e7e8] hover:bg-[#e7d0d1]"
+                              title="Normalize sub-criteria weights under this main so they sum to 100%"
+                            >Rebalance Subs to 100%</button>
+                          </div>
+                        ) : null}
+                      </SortableContext>
+                    </DndContext>
+                  </div>
                 </div>
-             </>   
+              </SortableItem>
             ))}
-
-                </div>
-                </div>
+          </SortableContext>
+        </DndContext>
+      </div>
+    </div>
   );
 }

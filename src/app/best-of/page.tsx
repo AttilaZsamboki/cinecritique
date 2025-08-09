@@ -1,6 +1,7 @@
 import { db } from "~/server/db";
 import { bestOf, criteria, movie } from "~/server/db/schema";
 import Link from "next/link";
+import { toYouTubeEmbedUrl } from "~/lib/utils";
 
 export default async function BestOfPage({searchParams}: {searchParams: Promise<{view: string}>}) {
   const all = await db.select().from(bestOf);
@@ -91,16 +92,30 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
                               ) : '-'}
                             </td>
                             <td className="px-6 py-4 text-sm">
-                              {b.clipUrl ? (
-                                <div className="relative group">
-                                  <video 
-                                    className="w-48 h-24 rounded-lg object-cover shadow-md transition-transform duration-200 group-hover:scale-105" 
-                                    controls 
-                                    src={`/api/video-proxy?url=${encodeURIComponent(b.clipUrl)}`} 
-                                  />
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-lg"></div>
-                                </div>
-                              ) : (
+                              {b.clipUrl ? (() => {
+                                const yt = toYouTubeEmbedUrl(b.clipUrl);
+                                return yt ? (
+                                  <div className="relative group">
+                                    <iframe
+                                      className="w-48 h-24 rounded-lg shadow-md transition-transform duration-200 group-hover:scale-105"
+                                      src={yt}
+                                      title="YouTube video player"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                      allowFullScreen
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-lg"></div>
+                                  </div>
+                                ) : (
+                                  <div className="relative group">
+                                    <video 
+                                      className="w-48 h-24 rounded-lg object-cover shadow-md transition-transform duration-200 group-hover:scale-105" 
+                                      controls 
+                                      src={b.clipUrl} 
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-lg"></div>
+                                  </div>
+                                );
+                              })() : (
                                 <span className="text-[#994d51] italic">No clip available</span>
                               )}
                             </td>

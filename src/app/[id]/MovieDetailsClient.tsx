@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip"
 import { useMemo, useState } from "react";
+import { toYouTubeEmbedUrl } from "~/lib/utils";
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   // Fetch all data via tRPC
@@ -134,17 +135,17 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   }
 
   return (
-    <div className="relative flex size-full min-h-screen flex-col bg-[#fcf8f8] group/design-root overflow-x-hidden" style={{ fontFamily: '"Plus Jakarta Sans", "Noto Sans", sans-serif' }}>
+    <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
       <div className="layout-container flex h-full grow flex-col">
-        <div className="px-40 flex flex-1 justify-center py-5">
-          <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
-            <div className="flex flex-wrap justify-between gap-3 p-4">
+        <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
+          <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 bg-white/50 backdrop-blur-sm rounded-2xl shadow-sm border border-white/20 mb-6">
               <p className="text-[#1b0e0e] tracking-light text-[32px] font-bold leading-tight min-w-72">Review: {movie.title}</p>
               <div className="flex items-center gap-2">
                 <input
                   type="url"
                   placeholder="Poster URL"
-                  className="h-8 w-72 rounded border border-[#e7d0d1] px-2 text-sm"
+                  className="h-9 w-72 rounded-xl border border-[#e7d0d1] bg-white/80 backdrop-blur-sm px-3 text-sm shadow-sm"
                   defaultValue={movie.posterUrl ?? ""}
                   onBlur={(e) => {
                     const val = e.currentTarget.value.trim();
@@ -156,7 +157,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                   }}
                 />
                 <button
-                  className="h-8 rounded px-2 text-sm bg-[#f3e7e8]"
+                  className="h-9 rounded-xl px-3 text-sm bg-[#994d51] text-white shadow-sm hover:bg-[#7a3d41] transition-colors"
                   onClick={async () => {
                     try {
                       const title = movie.title ?? "";
@@ -173,15 +174,15 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
               </div>
             </div>
             <div className="@container">
-              <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
+              <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm">
                 <div className="flex w-full shrink-[3] items-center justify-between">
                   <h3 className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em]">Overall Score</h3>
                   <p className="text-[#1b0e0e] text-sm font-normal leading-normal @[480px]:hidden">{overall ?? '-'}</p>
                 </div>
                 <div className="flex h-4 w-full items-center gap-4">
-                  <div className="flex h-1 flex-1 rounded-sm bg-[#e7d0d1]">
-                    <div className="h-full rounded-sm bg-[#5e5d5d]" style={{ width: `${overall !== undefined ? overall * 20 : 0}%` }}></div>
-                    <div className="relative"><div className="absolute -left-2 -top-1.5 size-4 rounded-full bg-[#5e5d5d]"></div></div>
+                  <div className="flex h-2 flex-1 rounded-full bg-[#e7d0d1]">
+                    <div className="h-full rounded-full bg-[#994d51]" style={{ width: `${overall !== undefined ? overall * 20 : 0}%` }}></div>
+                    <div className="relative"><div className="absolute -left-2 -top-1.5 size-4 rounded-full bg-[#994d51]"></div></div>
                   </div>
                   <p className="text-[#1b0e0e] text-sm font-normal leading-normal hidden @[480px]:block">{overall ?? '-'}</p>
                 </div>
@@ -190,15 +191,15 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
             {mainCriteria.sort((a, b) => (b.weight??0) - (a.weight ??0)).map(main => (
               <div key={main.id}>
                 <div className="@container">
-                  <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
+                  <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm">
                     <div className="flex w-full shrink-[3] items-center justify-between">
                       <h3 className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em]">{main.name}</h3>
                       <p className="text-[#1b0e0e] text-sm font-normal leading-normal @[480px]:hidden">{mainValues[main.id] !== undefined ? mainValues[main.id] : '-'}</p>
                     </div>
                     <div className="flex h-4 w-full items-center gap-4">
-                      <div className="flex h-1 flex-1 rounded-sm bg-[#e7d0d1]">
-                        <div className="h-full rounded-sm bg-[#5e5d5d]" style={{ width: `${mainValues[main.id] !== undefined ? (mainValues[main.id] ?? 0) * 20 : 0}%` }}></div>
-                        <div className="relative"><div className="absolute -left-2 -top-1.5 size-4 rounded-full bg-[#5e5d5d]"></div></div>
+                      <div className="flex h-2 flex-1 rounded-full bg-[#e7d0d1]">
+                        <div className="h-full rounded-full bg-[#994d51]" style={{ width: `${mainValues[main.id] !== undefined ? (mainValues[main.id] ?? 0) * 20 : 0}%` }}></div>
+                        <div className="relative"><div className="absolute -left-2 -top-1.5 size-4 rounded-full bg-[#994d51]"></div></div>
                       </div>
                       <p className="text-[#1b0e0e] text-sm font-normal leading-normal hidden @[480px]:block">{mainValues[main.id] !== undefined ? mainValues[main.id] : '-'}</p>
                     </div>
@@ -228,7 +229,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                                 currentBestClipUrl: current?.clipUrl,
                               });
                             }}
-                            className="ml-3 rounded px-2 py-1 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium"
+                            className="ml-3 rounded-lg px-2.5 py-1.5 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium hover:bg-[#e7d0d1] transition-colors"
                           >
                             Make Best
                           </button>
@@ -239,22 +240,22 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 ))}
               </div>
             ))}
-            <h3 className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Notes</h3>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
+            <h3 className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em] px-2 sm:px-4 pb-2 pt-4">Notes</h3>
+            <div className="flex max-w-[640px] flex-wrap items-end gap-4 px-2 sm:px-4 py-3">
               <label className="flex flex-col min-w-40 flex-1">
                 <textarea
                   placeholder="Enter your notes here..."
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#1b0e0e] focus:outline-0 focus:ring-0 border border-[#e7d0d1] bg-[#fcf8f8] focus:border-[#e7d0d1] min-h-36 placeholder:text-[#994d51] p-[15px] text-base font-normal leading-normal"
+                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-2xl text-[#1b0e0e] focus:outline-0 focus:ring-0 border border-[#e7d0d1] bg-white/80 backdrop-blur-sm focus:border-[#e7d0d1] min-h-36 placeholder:text-[#994d51] p-[15px] text-base font-normal leading-normal shadow-sm"
                 ></textarea>
               </label>
             </div>
-            <div className="flex px-4 py-3 justify-end">
+            <div className="flex px-2 sm:px-4 py-3 justify-end">
               <button
-                className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#e92932] text-[#fcf8f8] text-sm font-bold leading-normal tracking-[0.015em]"
+                className="flex min-w-[120px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#e92932] hover:bg-[#c61f27] text-white text-sm font-bold leading-normal tracking-[0.015em] shadow-sm"
               >
-<Link href="/">
-                <span className="truncate">Submit Review</span>
-</Link>
+                <Link href="/">
+                  <span className="truncate">Submit Review</span>
+                </Link>
               </button>
             </div>
           </div>
@@ -262,7 +263,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       </div>
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[520px] rounded-lg bg-white p-5">
+          <div className="w-[520px] rounded-2xl bg-white p-5 shadow-xl">
             <h4 className="text-lg font-bold mb-2">Confirm Best-in-Category</h4>
             {(() => {
               const best = currentBestByCriteria[confirm.criteriaId];
@@ -275,25 +276,46 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
               return (
                 <div className="mb-3">
                   <p className="text-sm text-[#1b0e0e] mb-2">Are you sure you think {movie.title} has better {subName} than {currentBestMovie?.title ?? "the current holder"}?</p>
-                  {confirm.currentBestClipUrl ? (
-                    <video className="w-full rounded" controls src={`/api/video-proxy?url=${encodeURIComponent(confirm.currentBestClipUrl)}`} />
-                  ) : null}
+                  {confirm.currentBestClipUrl ? (() => {
+                    const yt = toYouTubeEmbedUrl(confirm.currentBestClipUrl);
+                    return yt ? (
+                      <iframe className="w-full rounded-xl shadow-sm" src={yt} title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+                    ) : (
+                      <video className="w-full rounded-xl shadow-sm" controls src={`/api/video-proxy?url=${encodeURIComponent(confirm.currentBestClipUrl)}`} />
+                    );
+                  })() : null}
                 </div>
               );
             })()}
             <div className="mb-3">
-              <label className="block text-sm mb-1 text-[#1b0e0e]">Optional: Add a clip URL to justify this pick</label>
+              <label className="block text-sm mb-1 text-[#1b0e0e]">Optional: YouTube URL (supports watch/shorts/embed/yt.be)</label>
               <input
-                className="w-full rounded border border-[#e7d0d1] px-2 py-1 text-sm"
-                placeholder="https://..."
+                className="w-full rounded-xl border border-[#e7d0d1] bg-white/80 backdrop-blur-sm px-3 py-2 text-sm shadow-sm"
+                placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
                 value={confirm.clipUrlInput ?? ""}
                 onChange={(e) => setConfirm({ ...confirm, clipUrlInput: e.target.value })}
               />
+              {confirm.clipUrlInput ? (
+                (() => {
+                  const embed = toYouTubeEmbedUrl(confirm.clipUrlInput);
+                  return embed ? (
+                    <div className="mt-2">
+                      <iframe
+                        className="w-full aspect-video rounded-xl shadow-sm"
+                        src={embed}
+                        title="YouTube video preview"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : null;
+                })()
+              ) : null}
             </div>
             <div className="flex justify-end gap-2">
-              <button className="px-3 py-2 rounded bg-[#f3e7e8]" onClick={() => setConfirm(null)}>Cancel</button>
+              <button className="px-3 py-2 rounded-xl bg-[#f3e7e8] hover:bg-[#e7d0d1] transition-colors" onClick={() => setConfirm(null)}>Cancel</button>
               <button
-                className="px-3 py-2 rounded bg-[#e92932] text-white"
+                className="px-3 py-2 rounded-xl bg-[#e92932] hover:bg-[#c61f27] text-white shadow-sm"
                 onClick={() => {
                   if (!confirm) return;
                   setBestOf.mutate({ criteriaId: confirm.criteriaId, movieId: movie.id, clipUrl: confirm.clipUrlInput });
