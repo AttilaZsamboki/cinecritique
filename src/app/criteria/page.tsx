@@ -28,6 +28,8 @@ export default function CriteriaPage() {
   // Local state for weights (optimistic UI)
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [lastServerWeights, setLastServerWeights] = useState<Record<string, number>>({});
+  // Local drafts for inline editing (name/description)
+  const [drafts, setDrafts] = useState<Record<string, { name: string; description: string }>>({});
 
   // Initialize weights from server data
   useEffect(() => {
@@ -36,21 +38,25 @@ export default function CriteriaPage() {
       allCriteria.forEach(c => { initial[c.id] = c.weight ?? 0; });
       setWeights(initial);
       setLastServerWeights(initial);
+      const initialDrafts: Record<string, { name: string; description: string }> = {};
+      allCriteria.forEach(c => { initialDrafts[c.id] = { name: c.name ?? "", description: c.description ?? "" }; });
+      setDrafts(initialDrafts);
     }
   }, [allCriteria]);
 
-  // On mutation, update local state immediately, revert on error
+  // Local-only; commit on blur/enter
   const handleWeightChange = (id: string, value: number) => {
     setWeights(w => ({ ...w, [id]: value }));
+  };
+  const commitWeightChange = (id: string) => {
+    const value = weights[id] ?? 0;
     updateWeight.mutate(
       { id, weight: value },
       {
         onSuccess: () => {
           setLastServerWeights(w => ({ ...w, [id]: value }));
-          utils.movie.getAllCriteria.invalidate().catch(() => console.log(""));
         },
         onError: () => {
-          // Revert to last server value
           setWeights(w => ({ ...w, [id]: lastServerWeights[id] ?? 0 }));
         },
       }
@@ -61,17 +67,13 @@ export default function CriteriaPage() {
   const subCriteria = useMemo(() => allCriteria.filter(c => c.parentId).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [allCriteria]);
   const isLoadingNow = isLoading;
 
-  // DnD setup (hooks must be unconditional)
-  const sensors = useSensors(useSensor(PointerSensor));
+  // DnD setup (hooks must be unconditional). Use a distance constraint so clicks focus inputs.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
-    const style: React.CSSProperties = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
+  function SortableItem({ children }: { children: React.ReactNode }) {
     return (
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
+      <div>
+        {children}</div>
     );
   }
 
@@ -120,30 +122,35 @@ export default function CriteriaPage() {
         }}>
           <SortableContext items={mainCriteria.map(c => c.id)} strategy={verticalListSortingStrategy}>
             {mainCriteria.map(main => (
-              <SortableItem id={main.id} key={main.id}>
-                <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm mb-4">
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <input
-                        className="text-base font-semibold px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
-                        value={main.name ?? ''}
-                        onChange={(e) => updateCriteria.mutate({ id: main.id, name: e.target.value })}
-                      />
-                      <span className="text-xs text-[#6b4a4c]">Main</span>
+              <div key={main.id}>
+                  <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm mb-4">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <button aria-label="Drag" className="cursor-grab px-1 py-1 rounded hover:bg-[#f3e7e8]" >⋮⋮</button>
+                        <input
+                          className="text-base font-semibold px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                          value={drafts[main.id]?.name ?? ''}
+                          onChange={(e) => setDrafts(d => ({ ...d, [main.id]: { ...(d[main.id] ?? { name: '', description: '' }), name: e.target.value } }))}
+                          onBlur={() => updateCriteria.mutate({ id: main.id, name: drafts[main.id]?.name ?? '' })}
+                        />
+                        <span className="text-xs text-[#6b4a4c]">Main</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-[#6b4a4c]">Weight</label>
+                        <input
+                          type="number" min={0} max={100}
+                          value={weights[main.id] ?? 0}
+                          onChange={e => {
+                            handleWeightChange(main.id, Number(e.target.value));
+                          }}
+                          onBlur={() => commitWeightChange(main.id)}
+                          className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
+                        />
+                        <button onClick={() => createCriteria.mutate({ name: "New Sub", weight: 0, parentId: main.id })} className="h-8 rounded-lg px-2 text-sm bg-[#f3e7e8] hover:bg-[#e7d0d1]">Add Sub</button>
+                        <button onClick={() => deleteCriteria.mutate({ id: main.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm text-[#6b4a4c]">Weight</label>
-                      <input
-                        type="number" min={0} max={100}
-                        value={weights[main.id] ?? 0}
-                        onChange={e => handleWeightChange(main.id, Number(e.target.value))}
-                        className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
-                      />
-                      <button onClick={() => createCriteria.mutate({ name: "New Sub", weight: 0, parentId: main.id })} className="h-8 rounded-lg px-2 text-sm bg-[#f3e7e8] hover:bg-[#e7d0d1]">Add Sub</button>
-                      <button onClick={() => deleteCriteria.mutate({ id: main.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
-                    </div>
-                  </div>
-                  <div className="px-4 pb-4">
+                    <div className="px-4 pb-4">
                     <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={({ active, over }) => {
                       if (!over || active.id === over.id) return;
                       const subs = subCriteria.filter(s => s.parentId === main.id);
@@ -155,30 +162,34 @@ export default function CriteriaPage() {
                     }}>
                       <SortableContext items={subCriteria.filter(s => s.parentId === main.id).map(s => s.id)} strategy={verticalListSortingStrategy}>
                         {subCriteria.filter(sc => sc.parentId === main.id).map(sub => (
-                          <SortableItem id={sub.id} key={sub.id}>
-                            <div className="grid grid-cols-[20%_1fr_auto] items-start gap-4 border-t border-t-[#e7d0d1] py-3">
-                              <input
-                                className="text-sm font-medium px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
-                                value={sub.name ?? ''}
-                                onChange={(e) => updateCriteria.mutate({ id: sub.id, name: e.target.value })}
-                              />
-                              <textarea
-                                className="text-sm px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
-                                placeholder="Description"
-                                value={sub.description ?? ''}
-                                onChange={(e) => updateCriteria.mutate({ id: sub.id, description: e.target.value })}
-                              />
-                              <div className="flex items-center gap-2">
+                          <div key={sub.id}>
+                              <div className="grid grid-cols-[auto_20%_1fr_auto] items-start gap-3 border-t border-t-[#e7d0d1] py-3">
+                                <button aria-label="Drag" className="cursor-grab px-1 py-1 rounded hover:bg-[#f3e7e8]" >⋮⋮</button>
                                 <input
-                                  type="number" min={0} max={100}
-                                  value={weights[sub.id] ?? 0}
-                                  onChange={e => handleWeightChange(sub.id, Number(e.target.value))}
-                                  className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
+                                  className="text-sm font-medium px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                                  value={drafts[sub.id]?.name ?? ''}
+                                  onChange={(e) => setDrafts(d => ({ ...d, [sub.id]: { ...(d[sub.id] ?? { name: '', description: '' }), name: e.target.value } }))}
+                                  onBlur={() => updateCriteria.mutate({ id: sub.id, name: drafts[sub.id]?.name ?? '' })}
                                 />
-                                <button onClick={() => deleteCriteria.mutate({ id: sub.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
+                                <textarea
+                                  className="text-sm px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"
+                                  placeholder="Description"
+                                  value={drafts[sub.id]?.description ?? ''}
+                                  onChange={(e) => setDrafts(d => ({ ...d, [sub.id]: { ...(d[sub.id] ?? { name: '', description: '' }), description: e.target.value } }))}
+                                  onBlur={() => updateCriteria.mutate({ id: sub.id, description: drafts[sub.id]?.description ?? '' })}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number" min={0} max={100}
+                                    value={weights[sub.id] ?? 0}
+                                    onChange={e => handleWeightChange(sub.id, Number(e.target.value))}
+                                    onBlur={() => commitWeightChange(sub.id)}
+                                    className="w-16 text-sm border rounded px-2 py-1 text-[#994d51]"
+                                  />
+                                  <button onClick={() => deleteCriteria.mutate({ id: sub.id })} className="h-8 rounded-lg px-2 text-sm text-white bg-[#e92932] hover:bg-[#c61f27]">Delete</button>
+                                </div>
                               </div>
-                            </div>
-                          </SortableItem>
+                          </div>
                         ))}
                         {subCriteria.filter(sc => sc.parentId === main.id).length > 0 ? (
                           <div className="flex justify-end pt-3">
@@ -203,7 +214,7 @@ export default function CriteriaPage() {
                     </DndContext>
                   </div>
                 </div>
-              </SortableItem>
+              </div>
             ))}
           </SortableContext>
         </DndContext>

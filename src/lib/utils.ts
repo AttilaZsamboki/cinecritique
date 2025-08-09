@@ -16,7 +16,7 @@ export function toYouTubeEmbedUrl(rawUrl?: string | null): string | null {
 
     // youtu.be/<id>
     if (host === "youtu.be") {
-      videoId = url.pathname.split("/").filter(Boolean)[0] ?? null;
+      videoId = url.pathname.split("/").find(Boolean)?.[0] ?? null;
     }
 
     // youtube.com/watch?v=<id>

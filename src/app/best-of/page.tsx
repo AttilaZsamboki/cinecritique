@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { bestOf, criteria, movie } from "~/server/db/schema";
+import { bestOf, criteria, evaluation, evaluationScore, movie } from "~/server/db/schema";
 import Link from "next/link";
 import { toYouTubeEmbedUrl } from "~/lib/utils";
 
@@ -7,12 +7,75 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
   const all = await db.select().from(bestOf);
   const allCriteria = await db.select().from(criteria);
   const allMovies = await db.select().from(movie);
+  const evaluations = await db.select().from(evaluation);
+  const scores = await db.select().from(evaluationScore);
+  const genres = new Set(allMovies.map(m => m.genre))
+
+  const mainCriteria = allCriteria.filter(c => !c.parentId);
+  const subCriteria = allCriteria.filter(c => c.parentId);
+
+
+  const evalScores: Record<string, {criteriaId: string, score: number}[]> = {};
+  scores.forEach(s => {
+    if (s.evaluationId) {
+      if (!evalScores[s.evaluationId]) evalScores[s.evaluationId] = [];
+      evalScores[s.evaluationId]?.push({ criteriaId: s.criteriaId ?? '', score: Number(s.score) });
+    }
+  });
+
+  const movieEvaluations: Record<string, string[]> = {};
+  evaluations.forEach(ev => {
+    if (ev.movieId) {
+      if (!movieEvaluations[ev.movieId]) movieEvaluations[ev.movieId] = [];
+      movieEvaluations[ev.movieId]?.push(ev.id);
+    }
+  });
+  const movieWeightedAverages: Record<string, Array<string>> = {};
+  for (const movie of allMovies) {
+    const evalIds = movieEvaluations[movie.id] || [];
+    // For each main criteria, calculate weighted score
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const main of mainCriteria) {
+      // Find all sub-criteria for this main
+      const subs = subCriteria.filter(sc => sc.parentId === main.id);
+      // For each sub-criteria, gather all scores for this movie
+      let subWeightedSum = 0;
+      let subTotalWeight = 0;
+      for (const sub of subs) {
+        const subScores: number[] = [];
+        for (const evalId of evalIds) {
+          const scoresForEval = evalScores[evalId] || [];
+          const found = scoresForEval.find(s => s.criteriaId === sub.id);
+          if (found) subScores.push(found.score);
+        }
+        if (subScores.length > 0 && sub.weight) {
+          const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
+          subWeightedSum += avg * sub.weight;
+          subTotalWeight += sub.weight;
+        }
+      }
+      // Main-criteria value is weighted sum of sub-criteria
+      if (subTotalWeight > 0 && main.weight) {
+        const mainValue = subWeightedSum / subTotalWeight;
+        weightedSum += mainValue * main.weight;
+        totalWeight += main.weight;
+      }
+    }
+    if (totalWeight > 0) {
+      if (Number.parseInt(movieWeightedAverages[movie.genre??""]?.[1]??"0") < weightedSum / totalWeight) {
+        movieWeightedAverages[movie.genre??""] = [movie.id, (weightedSum / totalWeight).toString()]
+      }
+    }
+  }
 
   const criteriaById = Object.fromEntries(allCriteria.map(c => [c.id, c] as const));
   const movieById = Object.fromEntries(allMovies.map(m => [m.id, m] as const));
 
   const viewSearch = (await searchParams).view;
   const currentView = (viewSearch === 'gallery' || viewSearch === 'detailed') ? viewSearch : 'gallery';
+  
+  console.log(Object.entries(movieWeightedAverages))
 
 
   return (
@@ -127,6 +190,7 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
                 </div>
               </div>
             ) : (
+              <>
               <div className="px-2 sm:px-4 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {all.map((b) => {
@@ -170,7 +234,53 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
                     );
                   })}
                 </div>
-              </div>
+
+                </div>
+              <div className="px-2 sm:px-4 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {Object.entries(movieWeightedAverages).map((movie) => {
+                    const m = movie[0] ? movieById[movie[1][0]??""] : undefined;
+                    if (!m) return null;
+
+                    return (
+                      <Link key={m.id} href={`/${m.id}`} className="group block">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg border border-white/20 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1">
+                          <div className="aspect-[2/3] w-full overflow-hidden relative">
+                            {m.posterUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img 
+                                src={m.posterUrl} 
+                                alt={m.title ?? 'Poster'} 
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" 
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[#994d51] bg-gradient-to-br from-[#f3e7e8] to-[#e7d0d1]">
+                                <div className="text-center">
+                                  <div className="text-4xl mb-2">🎬</div>
+                                  <div className="text-sm font-medium">No Image</div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          </div>
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 rounded-full bg-[#994d51]"></div>
+                              <span className="text-xs font-medium text-[#994d51] uppercase tracking-wide">
+                                BEST {movie[0] ?? 'Unknown Category'}
+                              </span>
+                            </div>
+                            <h3 className="text-[#1b0e0e] font-semibold text-sm leading-tight line-clamp-2 group-hover:text-[#994d51] transition-colors duration-200" title={m.title ?? ''}>
+                              {m.title}
+                            </h3>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+                </div>
+</>
             )}
           </div>
         </div>

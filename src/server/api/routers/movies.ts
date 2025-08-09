@@ -99,7 +99,7 @@ export const movieRouter = createTRPCRouter({
       position: z.number().int().min(0).optional(),
     }))
     .mutation(async ({ input }) => {
-      const siblingCount = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.parentId ?? null) });
+      const siblingCount = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.parentId ?? "") });
       const pos = input.position ?? siblingCount.length;
       const [row] = await db.insert(criteria).values({
         name: input.name,
