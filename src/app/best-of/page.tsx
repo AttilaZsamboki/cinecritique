@@ -63,7 +63,7 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
       }
     }
     if (totalWeight > 0) {
-      if (Number.parseInt(movieWeightedAverages[movie.genre??""]?.[1]??"0") < weightedSum / totalWeight) {
+      if (Number.parseFloat(movieWeightedAverages[movie.genre??""]?.[1]??"0") < weightedSum / totalWeight) {
         movieWeightedAverages[movie.genre??""] = [movie.id, (weightedSum / totalWeight).toString()]
       }
     }
@@ -75,7 +75,6 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
   const viewSearch = (await searchParams).view;
   const currentView = (viewSearch === 'gallery' || viewSearch === 'detailed') ? viewSearch : 'gallery';
   
-  console.log(Object.entries(movieWeightedAverages))
 
 
   return (
@@ -238,11 +237,17 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
                 </div>
               <div className="px-2 sm:px-4 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Object.entries(movieWeightedAverages).map((movie) => {
-                    const m = movie[0] ? movieById[movie[1][0]??""] : undefined;
-                    if (!m) return null;
+                  {Object.entries(movieWeightedAverages)
+                    .sort((a, b) => {
+                      // Sort by movie title alphabetically
+                      return (a[0] ?? "").localeCompare(b[0] ?? "");
+                    })
+                    .map((movie) => {
+                      const movieId = movie[1][0] ?? "";
+                      const m = movieId ? movieById[movieId] : undefined;
+                      if (!m) return null;
 
-                    return (
+                      return (
                       <Link key={m.id} href={`/${m.id}`} className="group block">
                         <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg border border-white/20 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1">
                           <div className="aspect-[2/3] w-full overflow-hidden relative">
