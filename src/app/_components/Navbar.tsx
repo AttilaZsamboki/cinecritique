@@ -32,6 +32,7 @@ export default function Navbar() {
           <NavLink href="/" label="Home" />
           <NavLink href="/criteria" label="Criteria" />
           <NavLink href="/best-of" label="Best Of" />
+          <NavLink href="/best/people" label="Best People" />
           <Link
             href="/new"
             className="ml-2 inline-flex items-center h-9 rounded-xl px-3 text-sm font-semibold text-white bg-[#e92932] hover:bg-[#c61f27] transition-colors shadow-sm"

@@ -232,6 +232,10 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
       <div className="layout-container flex h-full grow flex-col">
         <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
           <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
+            <div className="flex items-center justify-between gap-4 px-2 sm:px-4 py-3">
+              <h1 className="text-[#1b0e0e] tracking-light text-[28px] font-bold leading-tight">Best Of</h1>
+              <Link href="/best/people" className="rounded-xl bg-[#994d51] px-3 py-2 text-sm text-white hover:bg-[#7a3d41] shadow-sm">Explore Best People</Link>
+            </div>
 
               <div className="px-2 sm:px-4 py-4">
                 <BestOfCarousels

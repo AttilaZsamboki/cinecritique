@@ -45,7 +45,7 @@ export const omdbRouter = createTRPCRouter({
 const titles = await db
   .select({ title: movie.title, year: movie.year })
   .from(movie)
-  .where(and(isNull(movie.posterUrl), isNotNull(movie.title)));
+  .where(and(isNull(movie.posterUrl), isNotNull(movie.title)))
 
 for (let i = 0; i < titles.length; i += BATCH_SIZE) {
   const batch = titles.slice(i, i + BATCH_SIZE);
@@ -67,24 +67,51 @@ for (let i = 0; i < titles.length; i += BATCH_SIZE) {
         return
       }
 
-      const new_data = Object.fromEntries(
-        Object.entries(parsed.data).map(([key, value]) => {
-          let k = key.toLowerCase();
-          if (key === "Year") {
-            k = parseInt(k ?? "") as unknown as string;
-          }
-          return [k, value];
-        })
-      );
+      const d = parsed.data;
+      // Parse box office (e.g., "$1,234,567") to a cleaned string or null
+      let boxOffice: string | null = null;
+      if (d.BoxOffice && d.BoxOffice !== "N/A") {
+        const cleaned = d.BoxOffice.replace(/\$/g, "").replace(/,/g, "");
+        const numeric = Number(cleaned);
+        boxOffice = Number.isNaN(numeric) ? null : cleaned;
+      }
 
-      new_data["posterUrl"] = (new_data as unknown as { poster: string }).poster;
+      // Parse year to number | null
+      const yearNum = parseInt(d.Year, 10);
+      const year = Number.isNaN(yearNum) ? null : yearNum;
+
+      // Explicitly map OMDb response to our DB insert type
+      const newData: typeof movie.$inferInsert = {
+        title: d.Title,
+        type: d.Type,
+        year,
+        genre: d.Genre,
+        posterUrl: d.Poster,
+        imdbID: d.imdbID,
+        rated: d.Rated,
+        released: d.Released,
+        runtime: d.Runtime,
+        director: d.Director,
+        writer: d.Writer,
+        actors: d.Actors,
+        plot: d.Plot,
+        language: d.Language,
+        country: d.Country,
+        awards: d.Awards,
+        dvd: d.DVD,
+        boxOffice,
+        production: d.Production,
+        website: d.Website,
+        response: d.Response,
+      };
+      console.log(newData)
 
       await db
         .insert(movie)
-        .values(new_data)
+        .values(newData)
         .onConflictDoUpdate({
           target: movie.title,
-          set: new_data,
+          set: newData,
         })
         .catch((err) => console.error(err))
         .finally(() => console.log(`Processed: ${title.title}`));
@@ -92,5 +119,5 @@ for (let i = 0; i < titles.length; i += BATCH_SIZE) {
   );
 }
 return {"data": {"Poster": ""}}
-})
-})
+    })
+});

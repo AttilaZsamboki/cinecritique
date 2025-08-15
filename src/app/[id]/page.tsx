@@ -1,4 +1,4 @@
-import MovieDetailsClient from "./MovieDetailsClient";
+import MoviePageClient from "./MoviePageClient";
 
 export default async function Page({
   params,
@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  return <MovieDetailsClient movieId={id} />;
+  return <MoviePageClient movieId={id} />;
 }

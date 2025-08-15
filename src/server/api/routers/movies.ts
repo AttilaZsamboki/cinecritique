@@ -42,6 +42,26 @@ export const movieRouter = createTRPCRouter({
       }
       return { success: true };
     }),
+
+  // List overrides for a movie
+  getMovieCriteriaOverrides: publicProcedure
+    .input(z.object({ movieId: z.string() }))
+    .query(async ({ input }) => {
+      return db.query.movieCriteriaOverride.findMany({ where: (o, { eq }) => eq(o.movieId, input.movieId) });
+    }),
+
+  // Clear override (delete) for a movie+criteria
+  clearMovieCriteriaOverride: publicProcedure
+    .input(z.object({ movieId: z.string(), criteriaId: z.string() }))
+    .mutation(async ({ input }) => {
+      const existing = await db.query.movieCriteriaOverride.findFirst({
+        where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.criteriaId, input.criteriaId)),
+      });
+      if (existing) {
+        await db.delete(movieCriteriaOverride).where(sql`id = ${existing.id}`);
+      }
+      return { success: true };
+    }),
   // Best-of endpoints
   setBestOf: publicProcedure
     .input(z.object({ criteriaId: z.string(), movieId: z.string(), clipUrl: z.string().optional().nullable() }))
@@ -107,8 +127,11 @@ export const movieRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       // Fetch all rows for criteria
       const rows = await db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
-      // Map movieId -> row
-      const map = new Map(rows.map((r) => [r.movieId!, r]));
+      // Map movieId -> row (guard against null movieId)
+      const map = new Map<string, typeof rows[number]>()
+      for (const r of rows) {
+        if (r.movieId) map.set(r.movieId, r);
+      }
       // Assign positions by order
       for (let i = 0; i < input.orderedMovieIds.length; i++) {
         const mid = input.orderedMovieIds[i];
@@ -198,11 +221,39 @@ export const movieRouter = createTRPCRouter({
   deleteCriteria: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
-      // Delete all sub-criteria first (cascade manually)
+      // Prevent deleting if referenced or if it has subs
       const subs = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.id) });
-      for (const s of subs) {
-        await db.delete(criteria).where(sql`id = ${s.id}`);
+      if (subs.length > 0) {
+        throw new Error("Cannot delete: criterion has sub-criteria.");
       }
+      const refCounts = await Promise.all([
+        db.query.evaluationScore.findMany({ where: (s, { eq }) => eq(s.criteriaId, input.id) }),
+        db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.criteriaId, input.id) }),
+        db.query.movieCriteriaOverride.findMany({ where: (o, { eq }) => eq(o.criteriaId, input.id) }),
+        db.query.criteriaDefaultApplicability.findMany({ where: (d, { eq }) => eq(d.criteriaId, input.id) }),
+      ]);
+      const referenced = refCounts.some(arr => arr.length > 0);
+      if (referenced) {
+        throw new Error("Cannot delete: criterion is referenced in scores, best-of, overrides, or defaults.");
+      }
+      await db.delete(criteria).where(sql`id = ${input.id}`);
+      return { success: true };
+    }),
+  // Force delete: remove references from dependent tables, then delete the criterion.
+  deleteCriteriaForce: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      // Still do not allow deleting mains that have subs.
+      const subs = await db.query.criteria.findMany({ where: (c, { eq }) => eq(c.parentId, input.id) });
+      if (subs.length > 0) {
+        throw new Error("Cannot force delete: criterion has sub-criteria. Delete subs first.");
+      }
+      // Remove references
+      await db.delete(evaluationScore).where(sql`criteria_id = ${input.id}`);
+      await db.delete(bestOf).where(sql`criteria_id = ${input.id}`);
+      await db.delete(movieCriteriaOverride).where(sql`criteria_id = ${input.id}`);
+      await db.delete(criteriaDefaultApplicability).where(sql`criteria_id = ${input.id}`);
+      // Delete the criterion itself
       await db.delete(criteria).where(sql`id = ${input.id}`);
       return { success: true };
     }),
@@ -267,8 +318,14 @@ export const movieRouter = createTRPCRouter({
       const defaults = await db.query.criteriaDefaultApplicability.findMany();
 
       // Build quick maps
-      const overrideMap = new Map(overrides.map((o) => [o.criteriaId!, o.mode!] as const));
-      const defaultMap = new Map(defaults.map((d) => [d.criteriaId!, d] as const));
+      const overrideMap = new Map<string, string>();
+      for (const o of overrides) {
+        if (o.criteriaId && o.mode) overrideMap.set(o.criteriaId, o.mode);
+      }
+      const defaultMap = new Map<string, typeof defaults[number]>();
+      for (const d of defaults) {
+        if (d.criteriaId) defaultMap.set(d.criteriaId, d);
+      }
 
       const parseCsv = (csv?: string | null) =>
         (csv ?? "")
@@ -280,7 +337,8 @@ export const movieRouter = createTRPCRouter({
       const mvGenres = parseCsv(mv.genre);
 
       const applicable = allCriteria.filter((c) => {
-        const cid = c.id!;
+        const cid = c.id;
+        if (!cid) return false;
         // Start with default: include unless defaultMode === 'exclude'
         const d = defaultMap.get(cid);
         let include = (d?.defaultMode ?? "include").toLowerCase() !== "exclude";
@@ -349,5 +407,227 @@ export const movieRouter = createTRPCRouter({
         await db.insert(criteriaDefaultApplicability).values({ criteriaId: input.criteriaId, ...payload });
       }
       return { success: true };
+    }),
+
+  // List all default applicability rules
+  getCriteriaDefaultApplicability: publicProcedure
+    .query(async () => {
+      return db.select().from(criteriaDefaultApplicability);
+    }),
+
+  // Reference info for criteria: whether it has subs or is referenced elsewhere
+  getCriteriaReferenceInfo: publicProcedure
+    .query(async () => {
+      const all = await db.select().from(criteria);
+      const info: Record<string, { hasSubs: boolean; referenced: boolean }> = {};
+      const subsByParent = new Map<string, number>();
+      for (const c of all) {
+        if (c.parentId) subsByParent.set(c.parentId, (subsByParent.get(c.parentId) ?? 0) + 1);
+      }
+      // Collect referenced IDs from other tables
+      const [scores, bests, overrides, defaults] = await Promise.all([
+        db.select().from(evaluationScore),
+        db.select().from(bestOf),
+        db.select().from(movieCriteriaOverride),
+        db.select().from(criteriaDefaultApplicability),
+      ]);
+      const referencedIds = new Set<string>();
+      for (const r of scores) if (r.criteriaId) referencedIds.add(r.criteriaId);
+      for (const r of bests) if (r.criteriaId) referencedIds.add(r.criteriaId);
+      for (const r of overrides) if (r.criteriaId) referencedIds.add(r.criteriaId);
+      for (const r of defaults) if (r.criteriaId) referencedIds.add(r.criteriaId);
+      for (const c of all) {
+        const id = c.id!;
+        info[id] = { hasSubs: (subsByParent.get(id) ?? 0) > 0, referenced: referencedIds.has(id) };
+      }
+      return info;
+    }),
+
+  // Update movie type and genre
+  updateMovieMeta: publicProcedure
+    .input(z.object({ id: z.string(), type: z.string().optional().nullable(), genre: z.string().optional().nullable() }))
+    .mutation(async ({ input }) => {
+      await db.update(movie)
+        .set({ type: input.type ?? null, genre: input.genre ?? null })
+        .where(sql`id = ${input.id}`);
+      return { success: true };
+    }),
+
+  // Compute top people by role, with averages and best movie poster
+  getTopPeopleByRole: publicProcedure
+    .input(z.object({
+      role: z.enum(["actor", "writer", "director"]),
+      page: z.number().int().min(1).optional().default(1),
+      pageSize: z.number().int().min(1).max(100).optional().default(20),
+      minMovies: z.number().int().min(1).optional().default(1),
+      // For actors, specify which sub-criteria to average (e.g., "Performance Quality" id)
+      actorCriteriaId: z.string().optional().nullable(),
+      sortBy: z.enum(["avg", "count"]).optional().default("avg"),
+      sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
+    }))
+    .query(async ({ input }) => {
+      // Load required data
+      const [allCriteria, allMovies, evaluations, scores] = await Promise.all([
+        db.select().from(criteria),
+        db.select().from(movie),
+        db.select().from(evaluation),
+        db.select().from(evaluationScore),
+      ]);
+
+      // Organize criteria
+      const mainCriteria = allCriteria.filter((c) => !c.parentId);
+      const subCriteria = allCriteria.filter((c) => c.parentId);
+
+      // Index scores by evaluationId
+      const evalScores: Record<string, { criteriaId: string; score: number }[]> = {};
+      for (const s of scores) {
+        if (s.evaluationId && s.criteriaId != null && s.score != null) {
+          const arr = (evalScores[s.evaluationId] ||= []);
+          arr.push({ criteriaId: s.criteriaId, score: Number(s.score) });
+        }
+      }
+
+      // Map movie -> evaluation ids
+      const movieEvaluations: Record<string, string[]> = {};
+      for (const ev of evaluations) {
+        if (ev.movieId && ev.id) {
+          const arr = (movieEvaluations[ev.movieId] ||= []);
+          arr.push(ev.id);
+        }
+      }
+
+      // Overall weighted score per movie (0-5)
+      const movieScores: Record<string, number> = {};
+      for (const mv of allMovies) {
+        const evalIds = movieEvaluations[mv.id ?? ""] || [];
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const main of mainCriteria) {
+          const subs = subCriteria.filter((sc) => sc.parentId === main.id);
+          let subWeightedSum = 0;
+          let subTotalWeight = 0;
+          for (const sub of subs) {
+            const subScores: number[] = [];
+            for (const evalId of evalIds) {
+              const scoresForEval = evalScores[evalId] || [];
+              const found = scoresForEval.find((s) => s.criteriaId === sub.id);
+              if (found) subScores.push(found.score);
+            }
+            if (subScores.length > 0 && (sub.weight ?? 0) > 0) {
+              const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
+              subWeightedSum += avg * (sub.weight ?? 0);
+              subTotalWeight += sub.weight ?? 0;
+            }
+          }
+          if (subTotalWeight > 0 && (main.weight ?? 0) > 0) {
+            const mainValue = subWeightedSum / subTotalWeight;
+            weightedSum += mainValue * (main.weight ?? 0);
+            totalWeight += main.weight ?? 0;
+          }
+        }
+        if (totalWeight > 0) movieScores[mv.id ?? ""] = weightedSum / totalWeight;
+      }
+
+      // For actors: compute per-movie average for a specific sub-criteria id if provided
+      const actorSubScoreByMovie: Record<string, number | undefined> = {};
+      if (input.role === "actor" && input.actorCriteriaId) {
+        const targetId = input.actorCriteriaId;
+        for (const mv of allMovies) {
+          const evalIds = movieEvaluations[mv.id ?? ""] || [];
+          const vals: number[] = [];
+          for (const eid of evalIds) {
+            const sarr = evalScores[eid] || [];
+            const f = sarr.find((s) => s.criteriaId === targetId);
+            if (f) vals.push(f.score);
+          }
+          if (vals.length > 0) actorSubScoreByMovie[mv.id ?? ""] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+      }
+
+      // Helper: split CSV names into an array of normalized names
+      const splitCsv = (s?: string | null) =>
+        (s ?? "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter((x) => x.length > 0);
+
+      type PersonAgg = {
+        name: string;
+        total: number; // sum of scores
+        count: number; // number of movies counted
+        bestMovieId?: string;
+        bestMovieTitle?: string | null;
+        bestPosterUrl?: string | null;
+        bestScore?: number;
+      };
+
+      const people: Record<string, PersonAgg> = {};
+      for (const mv of allMovies) {
+        const mvId = mv.id ?? "";
+        let scoreForRole: number | undefined;
+        if (input.role === "actor") {
+          scoreForRole = input.actorCriteriaId ? actorSubScoreByMovie[mvId] : movieScores[mvId];
+        } else {
+          scoreForRole = movieScores[mvId];
+        }
+        if (scoreForRole == null) continue;
+
+        let names: string[] = [];
+        if (input.role === "actor") names = splitCsv(mv.actors);
+        else if (input.role === "writer") names = splitCsv(mv.writer);
+        else if (input.role === "director") names = splitCsv(mv.director);
+
+        for (const name of names) {
+          const key = name; // keep original casing for display
+          if (!people[key]) {
+            people[key] = { name: key, total: 0, count: 0 };
+          }
+          const agg = people[key];
+          agg.total += scoreForRole;
+          agg.count += 1;
+          if (agg.bestScore == null || scoreForRole > agg.bestScore) {
+            agg.bestScore = scoreForRole;
+            agg.bestMovieId = mv.id ?? undefined;
+            agg.bestMovieTitle = mv.title ?? null;
+            agg.bestPosterUrl = mv.posterUrl ?? null;
+          }
+        }
+      }
+
+      // Build list and filter by minMovies
+      let list = Object.values(people).filter((p) => p.count >= (input.minMovies ?? 1));
+
+      // Compute averages
+      const items = list.map((p) => ({
+        name: p.name,
+        avg: p.count > 0 ? p.total / p.count : 0,
+        count: p.count,
+        bestMovieId: p.bestMovieId,
+        bestMovieTitle: p.bestMovieTitle,
+        bestPosterUrl: p.bestPosterUrl,
+        bestScore: p.bestScore,
+      }));
+
+      // Sorting
+      items.sort((a, b) => {
+        const dir = input.sortDir === "asc" ? 1 : -1;
+        if (input.sortBy === "count") {
+          if (a.count !== b.count) return dir * (a.count - b.count);
+          if (a.avg !== b.avg) return dir * (a.avg - b.avg);
+        } else {
+          if (a.avg !== b.avg) return dir * (a.avg - b.avg);
+          if (a.count !== b.count) return dir * (a.count - b.count);
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      const total = items.length;
+      const page = input.page ?? 1;
+      const pageSize = input.pageSize ?? 20;
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const pageItems = items.slice(start, end);
+
+      return { total, page, pageSize, items: pageItems };
     }),
 });

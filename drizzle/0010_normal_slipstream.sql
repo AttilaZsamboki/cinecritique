@@ -1,0 +1,1 @@
+ALTER TABLE "cinecritique_movie" ALTER COLUMN "box_office" SET DATA TYPE integer;
