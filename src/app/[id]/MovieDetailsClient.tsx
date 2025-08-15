@@ -17,14 +17,18 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   const evalIds = evaluations.map(e => e.id);
   const { data: scores = [] } = api.movie.getScoresByEvaluationIds.useQuery({ evalIds });
   const { data: bestOfAll = [] } = api.movie.getBestOfForAll.useQuery();
-
   const utils = api.useUtils();
+  const fetchMovieData = api.omdb.getByTitle.useMutation({
+    onSuccess: async () => {
+      await utils.movie.getById.invalidate({ id: movieId });
+    },
+  })
   const upsertScore = api.movie.upsertEvaluationScore.useMutation({
     onSuccess: () => {
       utils.movie.getScoresByEvaluationIds.invalidate({ evalIds }).catch(() => console.log(""));
     },
   });
-  const setBestOf = api.movie.setBestOf.useMutation({
+  const addToCurated = api.movie.addToBestOfList.useMutation({
     onSuccess: async () => {
       await utils.movie.getBestOfForAll.invalidate();
     },
@@ -37,8 +41,6 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
 
   const [confirm, setConfirm] = useState<{
     criteriaId: string,
-    currentBestMovieId?: string,
-    currentBestClipUrl?: string,
     clipUrlInput?: string,
   } | null>(null);
   const currentBestByCriteria: Record<string, {movieId: string, clipUrl?: string}> = {};
@@ -47,11 +49,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   }
 
   const criteriaById = useMemo(() => Object.fromEntries(allCriteria.map(c => [c.id, c] as const)), [allCriteria]);
-  const currentBestMovieId = confirm?.currentBestMovieId;
-  const { data: currentBestMovie } = api.movie.getById.useQuery(
-    { id: currentBestMovieId ?? "" },
-    { enabled: !!currentBestMovieId }
-  );
+  // No need to fetch current holder; we now allow multiple curated per criteria
 
   // Loading state
   if (movieLoading || criteriaLoading) return <div>Loading...</div>;
@@ -163,12 +161,10 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                       const title = movie.title ?? "";
                       const year = String(movie.year ?? "");
                       if (!title) return;
-                      const res = await fetch(`/api/omdb?t=${encodeURIComponent(title)}${year ? `&y=${encodeURIComponent(year)}` : ''}`);
-                      const data = (await res.json()) as unknown as { Poster?: string };
-                      if (data?.Poster && data.Poster !== 'N/A') {
-                        updatePoster.mutate({ id: movie.id, posterUrl: data.Poster });
-                      }
-                    } catch { /* noop */ }
+                      fetchMovieData.mutate({title, year})
+                    } catch {
+                      console.error("error")
+                    }
                   }}
                 >Fetch Poster</button>
               </div>
@@ -222,16 +218,13 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                           <span className="text-[#1b0e0e] text-sm font-normal leading-normal">{subAverages[sub.id] ?? '-'}</span>
                           <button
                             onClick={() => {
-                              const current = currentBestByCriteria[sub.id];
                               setConfirm({ 
                                 criteriaId: sub.id,
-                                currentBestMovieId: current?.movieId,
-                                currentBestClipUrl: current?.clipUrl,
                               });
                             }}
                             className="ml-3 rounded-lg px-2.5 py-1.5 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium hover:bg-[#e7d0d1] transition-colors"
                           >
-                            Make Best
+                            Add to Curated
                           </button>
                         </div>
                       </div>
@@ -264,29 +257,8 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-[520px] rounded-2xl bg-white p-5 shadow-xl">
-            <h4 className="text-lg font-bold mb-2">Confirm Best-in-Category</h4>
-            {(() => {
-              const best = currentBestByCriteria[confirm.criteriaId];
-              const subName = criteriaById[confirm.criteriaId]?.name ?? "this category";
-              if (!best) return (
-                <>
-                  <p className="text-sm text-[#1b0e0e] mb-3">Are you sure you think {movie.title} has the best {subName}? This will set the first title holder.</p>
-                </>
-              );
-              return (
-                <div className="mb-3">
-                  <p className="text-sm text-[#1b0e0e] mb-2">Are you sure you think {movie.title} has better {subName} than {currentBestMovie?.title ?? "the current holder"}?</p>
-                  {confirm.currentBestClipUrl ? (() => {
-                    const yt = toYouTubeEmbedUrl(confirm.currentBestClipUrl);
-                    return yt ? (
-                      <iframe className="w-full rounded-xl shadow-sm" src={yt} title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-                    ) : (
-                      <video className="w-full rounded-xl shadow-sm" controls src={`/api/video-proxy?url=${encodeURIComponent(confirm.currentBestClipUrl)}`} />
-                    );
-                  })() : null}
-                </div>
-              );
-            })()}
+            <h4 className="text-lg font-bold mb-2">Add to Curated</h4>
+            <p className="text-sm text-[#1b0e0e] mb-3">This will add <strong>{movie.title}</strong> to the curated top list for <strong>{criteriaById[confirm.criteriaId]?.name ?? "this category"}</strong>.</p>
             <div className="mb-3">
               <label className="block text-sm mb-1 text-[#1b0e0e]">Optional: YouTube URL (supports watch/shorts/embed/yt.be)</label>
               <input
@@ -318,7 +290,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 className="px-3 py-2 rounded-xl bg-[#e92932] hover:bg-[#c61f27] text-white shadow-sm"
                 onClick={() => {
                   if (!confirm) return;
-                  setBestOf.mutate({ criteriaId: confirm.criteriaId, movieId: movie.id, clipUrl: confirm.clipUrlInput });
+                  addToCurated.mutate({ criteriaId: confirm.criteriaId, movieId: movie.id, clipUrl: confirm.clipUrlInput });
                   setConfirm(null);
                 }}
               >Confirm</button>

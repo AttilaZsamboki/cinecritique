@@ -36,6 +36,34 @@
       "when": 1754735561695,
       "tag": "0004_dear_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1755200095587,
+      "tag": "0005_public_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1755200641166,
+      "tag": "0006_wandering_mordo",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1755203352688,
+      "tag": "0007_sleepy_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1755250952917,
+      "tag": "0008_cultured_the_watchers",
+      "breakpoints": true
     }
   ]
 }

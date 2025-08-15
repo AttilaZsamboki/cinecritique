@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { api } from "~/trpc/react";
 
 export default function PosterUrlField() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchMovieData = api.omdb.getByTitle.useMutation()
 
   const handleFetch = async () => {
     const titleInput = document.getElementById("title-input") as HTMLInputElement | null;
@@ -18,19 +20,7 @@ export default function PosterUrlField() {
     }
     setError(null);
     setLoading(true);
-    try {
-      const res = await fetch(`/api/omdb?t=${encodeURIComponent(title)}${year ? `&y=${encodeURIComponent(year)}` : ""}`);
-      const data = (await res.json()) as unknown as { Poster?: string };
-      if (data?.Poster && data.Poster !== "N/A") {
-        setValue(data.Poster);
-      } else {
-        setError("Poster not found on OMDb");
-      }
-    } catch {
-      setError("Failed to fetch poster");
-    } finally {
-      setLoading(false);
-    }
+    fetchMovieData.mutate({title, year}, {onSuccess: (data) => setValue(data.Poster)})
   };
 
   return (

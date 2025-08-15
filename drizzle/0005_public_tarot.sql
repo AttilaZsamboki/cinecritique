@@ -1,0 +1,23 @@
+CREATE TABLE "cinecritique_omdb_movie" (
+	"imdb_id" text PRIMARY KEY NOT NULL,
+	"title" text,
+	"year" integer,
+	"rated" text,
+	"released" text,
+	"runtime" text,
+	"genre" text,
+	"director" text,
+	"writer" text,
+	"actors" text,
+	"plot" text,
+	"language" text,
+	"country" text,
+	"awards" text,
+	"poster" text,
+	"type" text,
+	"dvd" text,
+	"box_office" text,
+	"production" text,
+	"website" text,
+	"response" text
+);

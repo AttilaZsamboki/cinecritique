@@ -26,11 +26,27 @@ export const criteria = createTable(
 
 export const movie = createTable("movie", (d) => ({
   id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: d.text("title"),
+  title: d.text("title").unique(),
   type: d.text("type"),
   year: d.integer("year"),
   genre: d.text("genre"), // new genre column
   posterUrl: d.text("poster_url"),
+  imdbID: d.text("imdb_id"),
+  rated: d.text("rated"),
+  released: d.text("released"),
+  runtime: d.text("runtime"),
+  director: d.text("director"),
+  writer: d.text("writer"),
+  actors: d.text("actors"),
+  plot: d.text("plot"),
+  language: d.text("language"),
+  country: d.text("country"),
+  awards: d.text("awards"),
+  dvd: d.text("dvd"),
+  boxOffice: d.text("box_office"),
+  production: d.text("production"),
+  website: d.text("website"),
+  response: d.text("response"),
 }));
 
 export const evaluation = createTable("evaluation", (d) => ({
@@ -52,5 +68,27 @@ export const bestOf = createTable("best_of", (d) => ({
   criteriaId: d.text("criteria_id").references(() => criteria.id),
   movieId: d.text("movie_id").references(() => movie.id),
   clipUrl: d.text("clip_url"),
+  position: d.integer("position"),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+// Per-movie override to include or exclude a criterion
+export const movieCriteriaOverride = createTable("movie_criteria_override", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  movieId: d.text("movie_id").references(() => movie.id),
+  criteriaId: d.text("criteria_id").references(() => criteria.id),
+  mode: d.text("mode"), // 'include' | 'exclude'
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+// Default applicability rules per criterion. CSV fields kept simple for now.
+export const criteriaDefaultApplicability = createTable("criteria_default_applicability", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  criteriaId: d.text("criteria_id").references(() => criteria.id),
+  defaultMode: d.text("default_mode"), // 'include' | 'exclude' (fallback if no filters match); default is 'include' when null
+  includeTypesCsv: d.text("include_types_csv"), // e.g. "animation,documentary"
+  excludeTypesCsv: d.text("exclude_types_csv"),
+  includeGenresCsv: d.text("include_genres_csv"),
+  excludeGenresCsv: d.text("exclude_genres_csv"),
   createdAt: d.timestamp("created_at").default(sql`now()`),
 }));

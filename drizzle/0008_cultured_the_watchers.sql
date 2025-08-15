@@ -1,0 +1,1 @@
+ALTER TABLE "cinecritique_best_of" ADD COLUMN "position" integer;
