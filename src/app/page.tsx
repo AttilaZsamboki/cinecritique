@@ -7,11 +7,36 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; page?: string; search?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    page?: string;
+    search?: string;
+    type?: string;
+    yearFrom?: string;
+    yearTo?: string;
+    genre?: string;
+    director?: string;
+    actor?: string;
+    minRating?: string;
+  }>;
 }) {
-  const { view, page = "1", search = "" } = await searchParams;
+  const {
+    view,
+    page = "1",
+    search = "",
+    type,
+    yearFrom,
+    yearTo,
+    genre = "",
+    director = "",
+    actor = "",
+    minRating,
+  } = await searchParams;
   const currentPage = Math.max(parseInt(page) || 1, 1);
   const itemsPerPage = 50;
+  const yearFromNum = yearFrom ? Number(yearFrom) : undefined;
+  const yearToNum = yearTo ? Number(yearTo) : undefined;
+  const minRatingNum = minRating ? Number(minRating) : undefined;
 
   // Movies query with search + pagination
   const moviesWithRatings = db.$with('movies_with_ratings').as(
@@ -22,6 +47,9 @@ export default async function Home({
         posterUrl: movie.posterUrl,
         genre: movie.genre,
         type: movie.type,
+        director: movie.director,
+        actors: movie.actors,
+        year: movie.year,
         rating: sql<number>`
           COALESCE((
             SELECT ROUND(AVG(es.score), 2)
@@ -34,8 +62,19 @@ export default async function Home({
       .from(movie)
       .where(
         and(
-          eq(movie.type, "movie"),
-          search ? like(movie.title, `%${search}%`) : sql`TRUE`
+          // Type filter (default to 'movie' when not specified)
+          type ? eq(movie.type, type) : eq(movie.type, "movie"),
+          // Title contains
+          search ? like(movie.title, `%${search}%`) : sql`TRUE`,
+          // Year range
+          yearFromNum !== undefined ? sql`${movie.year} >= ${yearFromNum}` : sql`TRUE`,
+          yearToNum !== undefined ? sql`${movie.year} <= ${yearToNum}` : sql`TRUE`,
+          // Director contains
+          director ? like(movie.director, `%${director}%`) : sql`TRUE`,
+          // Actor contains
+          actor ? like(movie.actors, `%${actor}%`) : sql`TRUE`,
+          // Genre contains (any substring match over CSV field)
+          genre ? like(movie.genre, `%${genre}%`) : sql`TRUE`
         )
       )
   );
@@ -45,20 +84,18 @@ export default async function Home({
     .with(moviesWithRatings)
     .select()
     .from(moviesWithRatings)
+    .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`)
     .orderBy(desc(moviesWithRatings.rating))
     .limit(itemsPerPage)
     .offset((currentPage - 1) * itemsPerPage);
 
   // Get total count for pagination
+  // Count with the same filters (including minRating) using the CTE
   const countRows = await db
+    .with(moviesWithRatings)
     .select({ count: sql<number>`COUNT(*)` })
-    .from(movie)
-    .where(
-      and(
-        eq(movie.type, "movie"),
-        search ? like(movie.title, `%${search}%`) : sql`TRUE`
-      )
-    );
+    .from(moviesWithRatings)
+    .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`);
   const count = countRows[0]?.count ?? 0;
 
   // Fetch all criteria, evaluations, and scores
@@ -124,6 +161,16 @@ export default async function Home({
 
   const currentView =
     view === "gallery" || view === "detailed" ? view : "gallery";
+  // Build query suffix to preserve filters in links
+  const q = new URLSearchParams();
+  if (search) q.set("search", search);
+  if (type) q.set("type", type);
+  if (yearFrom) q.set("yearFrom", yearFrom);
+  if (yearTo) q.set("yearTo", yearTo);
+  if (genre) q.set("genre", genre);
+  if (director) q.set("director", director);
+  if (actor) q.set("actor", actor);
+  if (minRating) q.set("minRating", minRating);
   const totalPages = Math.ceil(count / itemsPerPage);
 
   return (
@@ -133,20 +180,58 @@ export default async function Home({
           <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
             <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
               {/* Search bar */}
-              <form className="mb-6 flex gap-2">
-                <input
-                  type="text"
-                  name="search"
-                  defaultValue={search}
-                  placeholder="Search movies..."
-                  className="border rounded-lg px-4 py-2 flex-1"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-[#994d51] text-white rounded-lg"
-                >
-                  Search
-                </button>
+              <form className="mb-6 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Title</label>
+                  <input
+                    type="text"
+                    name="search"
+                    defaultValue={search}
+                    placeholder="e.g. Inception"
+                    className="border rounded-lg px-3 py-2 w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Type</label>
+                  <select name="type" defaultValue={type ?? "movie"} className="border rounded-lg px-3 py-2 w-full">
+                    <option value="">Any</option>
+                    <option value="movie">Movie</option>
+                    <option value="series">Series</option>
+                    <option value="episode">Episode</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Year From</label>
+                  <input type="number" name="yearFrom" defaultValue={yearFrom ?? ""} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Year To</label>
+                  <input type="number" name="yearTo" defaultValue={yearTo ?? ""} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Min Rating</label>
+                  <input type="number" step="0.1" min="0" max="5" name="minRating" defaultValue={minRating ?? ""} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Genre</label>
+                  <input type="text" name="genre" defaultValue={genre} placeholder="e.g. action" className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Director</label>
+                  <input type="text" name="director" defaultValue={director} placeholder="e.g. Nolan" className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-[#6b4a4c] mb-1">Actor</label>
+                  <input type="text" name="actor" defaultValue={actor} placeholder="e.g. DiCaprio" className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#994d51] text-white rounded-lg w-full"
+                  >
+                    Search
+                  </button>
+                </div>
               </form>
 
               {/* View toggle buttons */}
@@ -154,7 +239,7 @@ export default async function Home({
                 <span className="text-[#6b4a4c] text-sm font-medium">View:</span>
                 <div className="rounded-xl border border-[#e7d0d1] bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm">
                   <Link
-                    href={`/?view=detailed&search=${search}`}
+                    href={`/?view=detailed&${q.toString()}`}
                     className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
                       currentView === "detailed"
                         ? "bg-[#994d51] text-white shadow-sm"
@@ -164,7 +249,7 @@ export default async function Home({
                     Detailed
                   </Link>
                   <Link
-                    href={`/?view=gallery&search=${search}`}
+                    href={`/?view=gallery&${q.toString()}`}
                     className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
                       currentView === "gallery"
                         ? "bg-[#994d51] text-white shadow-sm"
@@ -232,7 +317,7 @@ export default async function Home({
               <div className="flex justify-center gap-4 mt-6">
                 {currentPage > 1 && (
                   <Link
-                    href={`/?page=${currentPage - 1}&view=${currentView}&search=${search}`}
+                    href={`/?page=${currentPage - 1}&view=${currentView}&${q.toString()}`}
                     className="px-4 py-2 bg-gray-200 rounded-lg"
                   >
                     Previous
@@ -240,7 +325,7 @@ export default async function Home({
                 )}
                 {currentPage < totalPages && (
                   <Link
-                    href={`/?page=${currentPage + 1}&view=${currentView}&search=${search}`}
+                    href={`/?page=${currentPage + 1}&view=${currentView}&${q.toString()}`}
                     className="px-4 py-2 bg-gray-200 rounded-lg"
                   >
                     Next
