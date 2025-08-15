@@ -280,7 +280,12 @@ export function BestOfCarousels({
                         setSearch("");
                       }}
                     >
-                      {m.posterUrl ? <img src={m.posterUrl} alt="poster" className="w-8 h-12 object-cover rounded" /> : <div className="w-8 h-12 bg-[#f3e7e8] rounded" />}
+                      {m.posterUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.posterUrl} alt="poster" className="w-8 h-12 object-cover rounded" />
+                      ) : (
+                        <div className="w-8 h-12 bg-[#f3e7e8] rounded" />
+                      )}
                       <div className="text-xs text-[#1b0e0e]">
                         <div className="font-medium">{m.title ?? m.id}</div>
                         {m.year ? <div>{m.year}</div> : null}
@@ -305,6 +310,7 @@ export function BestOfCarousels({
               ) : previewMovie ? (
                 <>
                   {previewMovie.posterUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={previewMovie.posterUrl} alt="poster" className="w-10 h-14 object-cover rounded" />
                   ) : null}
                   <div className="text-xs text-[#1b0e0e]">

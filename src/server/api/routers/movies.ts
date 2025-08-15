@@ -135,7 +135,7 @@ export const movieRouter = createTRPCRouter({
       // Assign positions by order
       for (let i = 0; i < input.orderedMovieIds.length; i++) {
         const mid = input.orderedMovieIds[i];
-        const r = map.get(mid);
+        const r = map.get(mid ?? "");
         if (r) {
           await db.update(bestOf).set({ position: i }).where(sql`id = ${r.id}`);
         }
@@ -437,7 +437,7 @@ export const movieRouter = createTRPCRouter({
       for (const r of overrides) if (r.criteriaId) referencedIds.add(r.criteriaId);
       for (const r of defaults) if (r.criteriaId) referencedIds.add(r.criteriaId);
       for (const c of all) {
-        const id = c.id!;
+        const id = c.id;
         info[id] = { hasSubs: (subsByParent.get(id) ?? 0) > 0, referenced: referencedIds.has(id) };
       }
       return info;
@@ -595,7 +595,7 @@ export const movieRouter = createTRPCRouter({
       }
 
       // Build list and filter by minMovies
-      let list = Object.values(people).filter((p) => p.count >= (input.minMovies ?? 1));
+      const list = Object.values(people).filter((p) => p.count >= (input.minMovies ?? 1));
 
       // Compute averages
       const items = list.map((p) => ({

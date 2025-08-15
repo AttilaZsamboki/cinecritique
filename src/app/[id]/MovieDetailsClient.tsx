@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip"
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { toYouTubeEmbedUrl } from "~/lib/utils";
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
@@ -54,8 +54,8 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   }
 
   // Minimal editor to include/exclude/inherit sub-criteria for this movie
-  function OverridesEditor({ allCriteria, applicableIds, movieId, parentId }: { allCriteria: typeof allCriteria; applicableIds: Set<string | undefined>; movieId: string, parentId?: string }) {
-    const subs = allCriteria.filter(c => c.parentId && (!parentId || c.parentId === parentId));
+  function OverridesEditor({ criterias, applicableIds, movieId, parentId }: { criterias: typeof allCriteria; applicableIds: Set<string | undefined>; movieId: string, parentId?: string }) {
+    const subs = criterias.filter(c => c.parentId && (!parentId || c.parentId === parentId));
     const [q, setQ] = useState("");
     const { data: overrides = [], refetch } = api.movie.getMovieCriteriaOverrides.useQuery({ movieId });
     const setOverride = api.movie.setMovieCriteriaOverride.useMutation({
@@ -75,6 +75,9 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       }
     });
 
+    type Mode = 'inherit' | 'include' | 'exclude';
+    const isMode = (v: unknown): v is Mode => v === 'inherit' || v === 'include' || v === 'exclude';
+
     const overrideMap = new Map(overrides.map(o => [o.criteriaId, o.mode] as const));
 
     const filtered = subs.filter(sc => (sc.name ?? "").toLowerCase().includes(q.toLowerCase()));
@@ -91,10 +94,10 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {filtered.map(sc => {
-          const id = sc.id!;
+          const id = sc.id;
           const effIncluded = applicableIds.has(id);
           const ov = overrideMap.get(id);
-          const state: 'inherit' | 'include' | 'exclude' = ov ? (ov as any) : 'inherit';
+          const state: Mode = isMode(ov) ? ov : 'inherit';
           return (
             <div key={id} className="flex items-center justify-between border border-[#e7d0d1] rounded-xl px-3 py-2 bg-white/80">
               <div className="text-sm text-[#1b0e0e] mr-3 min-w-0 flex-1">
@@ -140,8 +143,8 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
 
   // Build criteria tree
   const applicableIds = new Set(applicable.map(c => c.id));
-  const mainCriteria = allCriteria.filter(c => !c.parentId && applicableIds.has(c.id!));
-  const subCriteria = allCriteria.filter(c => c.parentId && applicableIds.has(c.id!));
+  const mainCriteria = allCriteria.filter(c => !c.parentId && applicableIds.has(c.id));
+  const subCriteria = allCriteria.filter(c => c.parentId && applicableIds.has(c.id));
 
   // Map: evaluationId -> [score]
   const evalScores: Record<string, {criteriaId: string, score: number}[]> = {};
@@ -292,7 +295,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 />
                 <button
                   className="rounded-xl bg-[#994d51] px-3 py-1 text-sm text-white hover:bg-[#7a3d41]"
-                  onClick={() => updateMeta.mutate({ id: movie.id!, type: typeInput || null, genre: genreInput || null })}
+                  onClick={() => updateMeta.mutate({ id: movie.id, type: typeInput || null, genre: genreInput || null })}
                   disabled={updateMeta.isPending}
                 >Save</button>
               </div>
@@ -310,11 +313,11 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                           className="text-xs px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white hover:bg-[#f3e7e8]"
                           onClick={() => {
                             const s = new Set(openOverrides);
-                            if (s.has(main.id!)) s.delete(main.id!); else s.add(main.id!);
+                            if (s.has(main.id)) s.delete(main.id); else s.add(main.id);
                             setOpenOverrides(s);
                           }}
                         >
-                          {openOverrides.has(main.id!) ? 'Hide' : 'Show'} Applicability
+                          {openOverrides.has(main.id) ? 'Hide' : 'Show'} Applicability
                         </button>
                       </div>
                     </div>
@@ -343,7 +346,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                           <StarInput
                             value={localSubAvg[sub.id] ?? (subAverages[sub.id] ?? 0)}
                             onChange={(v) => {
-                              setLocalSubAvg((prev) => ({ ...prev, [sub.id!]: v }));
+                              setLocalSubAvg((prev) => ({ ...prev, [sub.id]: v }));
                               upsertScore.mutate({ movieId: movie.id, criteriaId: sub.id, score: v });
                             }}
                           />
@@ -363,17 +366,17 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                     </div>
                   </div>
                 ))}
-                {openOverrides.has(main.id!) && (
+                {openOverrides.has(main.id) && (
                   <div className="mt-3 p-4 bg-white/60 rounded-2xl border border-white/20">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-[#1b0e0e] text-base font-semibold">Criteria Applicability</h4>
                       <span className="text-xs text-[#6b4a4c]">{subCriteria.filter(sc => sc.parentId === main.id).length} items</span>
                     </div>
                     <OverridesEditor
-                      allCriteria={allCriteria}
+                      criterias={allCriteria}
                       applicableIds={applicableIds}
                       movieId={movie.id}
-                      parentId={main.id!}
+                      parentId={main.id}
                     />
                   </div>
                 )}

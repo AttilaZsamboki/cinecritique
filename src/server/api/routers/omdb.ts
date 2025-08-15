@@ -47,23 +47,17 @@ const titles = await db
   .from(movie)
   .where(and(isNull(movie.posterUrl), isNotNull(movie.title)))
 
-for (let i = 0; i < titles.length; i += BATCH_SIZE) {
-  const batch = titles.slice(i, i + BATCH_SIZE);
-
-  await Promise.all(
-    batch.map(async (title) => {
       const url = new URL("https://www.omdbapi.com/");
-      url.searchParams.set("t", title.title ?? "");
-      if (title.year) url.searchParams.set("y", title.year.toString() ?? "");
-      url.searchParams.set("apikey", env.OMDB_API_KEY);
+      url.searchParams.set("t", input.title ?? "");
+      if (input.year) url.searchParams.set("y", input.year.toString() ?? "");
+      url.searchParams.set("apikey", env.OMDB_API_KEY ?? "");
 
       const res = await fetch(url.toString());
-      const data = await res.json();
+      const data = await res.json() as Promise<{Poster: string}>;
 
 
       const parsed = OmdbResponseSchema.safeParse(data);
       if (!parsed.success) {
-        console.log(title, parsed.error)
         return
       }
 
@@ -114,10 +108,8 @@ for (let i = 0; i < titles.length; i += BATCH_SIZE) {
           set: newData,
         })
         .catch((err) => console.error(err))
-        .finally(() => console.log(`Processed: ${title.title}`));
-    })
-  );
-}
-return {"data": {"Poster": ""}}
+        .finally(() => console.log(`Processed: ${input.title}`));
+
+    return {data: {Poster: d.Poster}}
     })
 });

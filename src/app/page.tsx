@@ -50,7 +50,7 @@ export default async function Home({
     .offset((currentPage - 1) * itemsPerPage);
 
   // Get total count for pagination
-  const [{ count }] = await db
+  const countRows = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(movie)
     .where(
@@ -59,6 +59,7 @@ export default async function Home({
         search ? like(movie.title, `%${search}%`) : sql`TRUE`
       )
     );
+  const count = countRows[0]?.count ?? 0;
 
   // Fetch all criteria, evaluations, and scores
   const allCriteria = await db.select().from(criteria);

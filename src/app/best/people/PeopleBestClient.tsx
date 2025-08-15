@@ -107,7 +107,7 @@ export default function PeopleBestClient() {
                     value={sortBy ?? ""}
                     onChange={(e) => {
                       const v = e.target.value as SortBy | "";
-                      setSortBy(v === "" ? undefined : (v as SortBy));
+                      setSortBy(v === "" ? undefined : (v));
                       setPage(1);
                     }}
                   >
@@ -123,7 +123,7 @@ export default function PeopleBestClient() {
                     value={sortDir ?? ""}
                     onChange={(e) => {
                       const v = e.target.value as SortDir | "";
-                      setSortDir(v === "" ? undefined : (v as SortDir));
+                      setSortDir(v === "" ? undefined : (v));
                       setPage(1);
                     }}
                   >

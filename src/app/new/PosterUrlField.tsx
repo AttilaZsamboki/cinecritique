@@ -20,7 +20,7 @@ export default function PosterUrlField() {
     }
     setError(null);
     setLoading(true);
-    fetchMovieData.mutate({title, year}, {onSuccess: (data) => setValue(data.Poster)})
+    fetchMovieData.mutate({title, year}, {onSuccess: (data) => setValue(data?.data?.Poster??"")})
   };
 
   return (

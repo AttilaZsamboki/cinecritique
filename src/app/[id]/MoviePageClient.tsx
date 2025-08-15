@@ -26,8 +26,8 @@ export default function MoviePageClient({ movieId }: { movieId: string }) {
 
   // Compute overall similar to editor
   const applicableIds = new Set(applicable.map(c => c.id));
-  const mainCriteria = allCriteria.filter(c => !c.parentId && applicableIds.has(c.id!));
-  const subCriteria = allCriteria.filter(c => c.parentId && applicableIds.has(c.id!));
+  const mainCriteria = allCriteria.filter(c => !c.parentId && applicableIds.has(c.id));
+  const subCriteria = allCriteria.filter(c => c.parentId && applicableIds.has(c.id));
   const evalScores: Record<string, {criteriaId: string, score: number}[]> = {};
   scores.forEach(s => {
     if (s.evaluationId) {

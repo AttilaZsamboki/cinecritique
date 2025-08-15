@@ -1,7 +1,6 @@
 import { db } from "~/server/db";
 import { bestOf, criteria, evaluation, evaluationScore, movie } from "~/server/db/schema";
 import Link from "next/link";
-import { toYouTubeEmbedUrl } from "~/lib/utils";
 import { BestOfCarousels } from "~/app/best-of/_components/BestOfCarousels";
 
 export default async function BestOfPage({searchParams}: {searchParams: Promise<{view: string}>}) {
@@ -84,7 +83,7 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
       if (!groups[key]) groups[key] = [];
       groups[key].push({ movieId: m.id, score });
     }
-    Object.keys(groups).forEach((k) => groups[k].sort((a, b) => b.score - a.score));
+    Object.keys(groups).forEach((k) => groups[k]?.sort((a, b) => b.score - a.score));
     return groups;
   }
 
@@ -100,7 +99,7 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
         groups[key].push({ movieId: m.id, score });
       }
     }
-    Object.keys(groups).forEach((k) => groups[k].sort((a, b) => b.score - a.score));
+    Object.keys(groups).forEach((k) => groups[k]?.sort((a, b) => b.score - a.score));
     return groups;
   }
 
@@ -188,8 +187,8 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
         posterUrl: m.posterUrl,
         href: `/${m.id}`,
         subtitle: undefined,
-        createdAt: (b as any).createdAt ?? undefined,
-        position: (b as any).position ?? null,
+        createdAt: b.createdAt!,
+        position: b.position!,
       });
       return acc;
     },

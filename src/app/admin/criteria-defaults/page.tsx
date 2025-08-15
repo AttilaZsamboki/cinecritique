@@ -24,7 +24,7 @@ export default function CriteriaDefaultsAdminPage() {
             <CriteriaRuleRow
               key={c.id}
               criterion={c}
-              rule={byCriteria.get(c.id!)}
+              rule={byCriteria.get(c.id)}
               onSave={(payload) => setRule.mutate(payload)}
             />
           ))}
