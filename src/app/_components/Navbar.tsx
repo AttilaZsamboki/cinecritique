@@ -28,7 +28,7 @@ export default function Navbar() {
           <div className="text-[#994d51]"><svg viewBox="0 0 48 48" width="24" height="24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 6H42L36 24L42 42H6L12 24L6 6Z"/></svg></div>
           <h1 className="text-[#1b0e0e] text-lg font-bold tracking-[-0.015em]">CineCritique</h1>
         </Link>
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-2 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap scrollbar-none">
           <NavLink href="/" label="Home" />
           <NavLink href="/criteria" label="Criteria" />
           <NavLink href="/best-of" label="Best Of" />

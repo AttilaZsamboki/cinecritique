@@ -155,7 +155,7 @@ export default function CriteriaPage() {
                     </div>
                     <div className="px-4 pb-4">
                       {subCriteria.filter(sc => sc.parentId === main.id).map(sub => (
-                        <div key={sub.id} className="grid grid-cols-[auto_20%_1fr_auto] items-start gap-3 border-t border-t-[#e7d0d1] py-3">
+                        <div key={sub.id} className="grid grid-cols-1 sm:grid-cols-[auto_20%_1fr_auto] items-start gap-3 border-t border-t-[#e7d0d1] py-3">
                           <span className="px-1 py-1 rounded text-[#c8b3b4]">⋮⋮</span>
                                   <input
                                     className="text-sm font-medium px-2 py-1 rounded-lg border border-[#e7d0d1] bg-white/70"

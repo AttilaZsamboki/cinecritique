@@ -76,9 +76,9 @@ export default function MoviePageClient({ movieId }: { movieId: string }) {
     <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
       <div className="layout-container flex h-full grow flex-col">
         <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
-          <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
-            <div className="flex items-center justify-between gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
-              <h1 className="text-[#1b0e0e] tracking-light text-[28px] font-bold leading-tight">{mv?.title ?? "Movie"}</h1>
+          <div className="layout-content-container flex flex-col max-w-[1200px] flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
+              <h1 className="text-[#1b0e0e] tracking-light text-[28px] font-bold leading-tight break-words">{mv?.title ?? "Movie"}</h1>
               <div className="inline-flex rounded-xl border border-[#e7d0d1] bg-white p-1 shadow-sm">
                 <button
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'details' ? 'bg-[#994d51] text-white' : 'text-[#1b0e0e] hover:bg-[#f3e7e8]'}`}
@@ -105,10 +105,10 @@ export default function MoviePageClient({ movieId }: { movieId: string }) {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 min-w-0">
                   <div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl font-bold text-[#1b0e0e]">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="text-2xl font-bold text-[#1b0e0e] break-words">
                         {mv.title}
                         {mv.year ? <span className="ml-2 text-[#6b4a4c] text-lg">({mv.year})</span> : null}
                       </div>

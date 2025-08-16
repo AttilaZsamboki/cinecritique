@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import PosterUrlField from "./PosterUrlField"
 
 export default function Page() {
+
   async function create(formData: FormData) {
     'use server'
     const rawFormData = {
@@ -19,10 +20,12 @@ export default function Page() {
     redirect("/"+movie[0]?.id)
   }
     return (
-        <form action={create} className="px-40 flex flex-1 justify-center py-5">
-          <div className="layout-content-container flex flex-col w-[512px] max-w-[512px] py-5 max-w-[960px] flex-1">
+        <form action={create} className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-5">
+          <div className="layout-content-container flex flex-col w-full max-w-[512px] sm:max-w-[640px] md:max-w-[768px] lg:max-w-[960px] py-5 flex-1">
+
             <div className="flex flex-wrap justify-between gap-3 p-4"><p className="text-[#191011] tracking-light text-[32px] font-bold leading-tight min-w-72">Add New Movie</p></div>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
+            <div className="flex w-full max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
+
               <label className="flex flex-col min-w-40 flex-1">
                 <p className="text-[#191011] text-base font-medium leading-normal pb-2">Title</p>
                 <input
