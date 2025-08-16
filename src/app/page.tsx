@@ -180,90 +180,107 @@ export default async function Home({
           <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
             <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
               {/* Search bar */}
-              <form className="mb-6 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Title</label>
-                  <input
-                    type="text"
-                    name="search"
-                    defaultValue={search}
-                    placeholder="e.g. Inception"
-                    className="border rounded-lg px-3 py-2 w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Type</label>
-                  <select name="type" defaultValue={type ?? "movie"} className="border rounded-lg px-3 py-2 w-full">
-                    <option value="">Any</option>
-                    <option value="movie">Movie</option>
-                    <option value="series">Series</option>
-                    <option value="episode">Episode</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Year From</label>
-                  <input type="number" name="yearFrom" defaultValue={yearFrom ?? ""} className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div>
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Year To</label>
-                  <input type="number" name="yearTo" defaultValue={yearTo ?? ""} className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div>
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Min Rating</label>
-                  <input type="number" step="0.1" min="0" max="5" name="minRating" defaultValue={minRating ?? ""} className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Genre</label>
-                  <input type="text" name="genre" defaultValue={genre} placeholder="e.g. action" className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div>
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Director</label>
-                  <input type="text" name="director" defaultValue={director} placeholder="e.g. Nolan" className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-[#6b4a4c] mb-1">Actor</label>
-                  <input type="text" name="actor" defaultValue={actor} placeholder="e.g. DiCaprio" className="border rounded-lg px-3 py-2 w-full" />
-                </div>
-                <div>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[#994d51] text-white rounded-lg w-full"
-                  >
-                    Search
-                  </button>
+              <form className="mb-8 glass-strong rounded-2xl p-6 shadow-elegant-lg">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Title</label>
+                    <input
+                      type="text"
+                      name="search"
+                      defaultValue={search}
+                      placeholder="e.g. Inception"
+                      className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Type</label>
+                    <select name="type" defaultValue={type ?? "movie"} className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70">
+                      <option value="">Any</option>
+                      <option value="movie">Movie</option>
+                      <option value="series">Series</option>
+                      <option value="episode">Episode</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Year From</label>
+                    <input type="number" name="yearFrom" defaultValue={yearFrom ?? ""} className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Year To</label>
+                    <input type="number" name="yearTo" defaultValue={yearTo ?? ""} className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Min Rating</label>
+                    <input type="number" step="0.1" min="0" max="5" name="minRating" defaultValue={minRating ?? ""} className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Genre</label>
+                    <input type="text" name="genre" defaultValue={genre} placeholder="e.g. action" className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Director</label>
+                    <input type="text" name="director" defaultValue={director} placeholder="e.g. Nolan" className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#6b4a4c] mb-2">Actor</label>
+                    <input type="text" name="actor" defaultValue={actor} placeholder="e.g. DiCaprio" className="focus-ring border border-white/30 rounded-xl px-4 py-3 w-full bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60" />
+                  </div>
+                  <div>
+                    <button
+                      type="submit"
+                      className="px-6 py-3 bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white rounded-xl w-full font-semibold shadow-elegant hover:shadow-elegant-lg transition-all duration-300 hover:scale-105 hover:from-[#7a3d41] hover:to-[#5d2e32]"
+                    >
+                      🔍 Search
+                    </button>
+                  </div>
                 </div>
               </form>
 
               {/* View toggle buttons */}
-              <div className="flex items-center gap-3 mb-6">
-                <span className="text-[#6b4a4c] text-sm font-medium">View:</span>
-                <div className="rounded-xl border border-[#e7d0d1] bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm">
-                  <Link
-                    href={`/?view=detailed&${q.toString()}`}
-                    className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                      currentView === "detailed"
-                        ? "bg-[#994d51] text-white shadow-sm"
-                        : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-[#f3e7e8]"
-                    }`}
-                  >
-                    Detailed
-                  </Link>
-                  <Link
-                    href={`/?view=gallery&${q.toString()}`}
-                    className={`px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                      currentView === "gallery"
-                        ? "bg-[#994d51] text-white shadow-sm"
-                        : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-[#f3e7e8]"
-                    }`}
-                  >
-                    Gallery
-                  </Link>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <span className="text-[#6b4a4c] text-sm font-semibold">View Mode:</span>
+                  <div className="glass rounded-2xl overflow-hidden shadow-elegant">
+                    <Link
+                      href={`/?view=detailed&${q.toString()}`}
+                      className={`inline-flex items-center px-6 py-3 text-sm font-medium transition-all duration-300 relative overflow-hidden group ${
+                        currentView === "detailed"
+                          ? "bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white shadow-elegant"
+                          : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:scale-105"
+                      }`}
+                    >
+                      {currentView !== "detailed" && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      )}
+                      <span className="relative z-10 flex items-center gap-2">
+                        📋 Detailed
+                      </span>
+                    </Link>
+                    <Link
+                      href={`/?view=gallery&${q.toString()}`}
+                      className={`inline-flex items-center px-6 py-3 text-sm font-medium transition-all duration-300 relative overflow-hidden group ${
+                        currentView === "gallery"
+                          ? "bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white shadow-elegant"
+                          : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:scale-105"
+                      }`}
+                    >
+                      {currentView !== "gallery" && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      )}
+                      <span className="relative z-10 flex items-center gap-2">
+                        🎬 Gallery
+                      </span>
+                    </Link>
+                  </div>
+                </div>
+                <div className="text-sm text-[#6b4a4c] font-medium">
+                  {count} movies found
                 </div>
               </div>
 
               {/* Movie list */}
               {currentView === "gallery" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
                   {movies
                     .sort(
                       (a, b) =>
@@ -276,29 +293,36 @@ export default async function Home({
                         href={`/${m.id}`}
                         className="group block"
                       >
-                        <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg border border-white/20 transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
+                        <div className="glass-strong rounded-2xl overflow-hidden shadow-elegant border border-white/30 transition-all duration-500 hover:shadow-elegant-xl hover:scale-[1.05] hover:-translate-y-2 animate-float" style={{animationDelay: `${Math.random() * 2}s`}}>
                           <div className="aspect-[2/3] w-full overflow-hidden relative">
                             {m.posterUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={m.posterUrl}
                                 alt={m.title ?? "Poster"}
-                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110"
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[#994d51] bg-gradient-to-br from-[#f3e7e8] to-[#e7d0d1]">
-                                No Image
+                              <div className="flex h-full w-full items-center justify-center text-[#994d51] bg-gradient-to-br from-[#f3e7e8] to-[#e7d0d1] text-lg font-semibold">
+                                🎬
+                                <div className="mt-2 text-xs text-center px-2">No Poster</div>
                               </div>
                             )}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
-                              <div className="text-white text-sm font-medium line-clamp-1 drop-shadow">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                              <div className="text-white text-sm font-semibold line-clamp-2 drop-shadow-lg mb-2">
                                 {m.title}
                               </div>
-                              <div
-                                className="ml-2 rounded-full bg-white/80 text-[#994d51] px-2 py-0.5 text-xs font-semibold drop-shadow"
-                                title={`${movieWeightedAverages[m.id] ?? "-"}`}
-                              >
-                                {movieWeightedAverages[m.id] ?? "-"}
+                              <div className="flex items-center justify-between">
+                                <div className="text-white/80 text-xs">
+                                  {m.year && `${m.year} • `}{m.type}
+                                </div>
+                                {movieWeightedAverages[m.id] && (
+                                  <div className="flex items-center gap-1 rounded-full bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white px-2 py-1 text-xs font-bold shadow-elegant">
+                                    <span>⭐</span>
+                                    <span>{movieWeightedAverages[m.id]?.toFixed(1)}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -314,21 +338,24 @@ export default async function Home({
               )}
 
               {/* Pagination */}
-              <div className="flex justify-center gap-4 mt-6">
+              <div className="flex justify-center items-center gap-4 mt-12">
                 {currentPage > 1 && (
                   <Link
                     href={`/?page=${currentPage - 1}&view=${currentView}&${q.toString()}`}
-                    className="px-4 py-2 bg-gray-200 rounded-lg"
+                    className="glass rounded-xl px-6 py-3 text-[#6b4a4c] font-medium shadow-elegant hover:shadow-elegant-lg transition-all duration-300 hover:scale-105 hover:text-[#994d51]"
                   >
-                    Previous
+                    ← Previous
                   </Link>
                 )}
+                <div className="flex items-center gap-2 text-sm text-[#6b4a4c] font-medium">
+                  <span>Page {currentPage} of {totalPages}</span>
+                </div>
                 {currentPage < totalPages && (
                   <Link
                     href={`/?page=${currentPage + 1}&view=${currentView}&${q.toString()}`}
-                    className="px-4 py-2 bg-gray-200 rounded-lg"
+                    className="glass rounded-xl px-6 py-3 text-[#6b4a4c] font-medium shadow-elegant hover:shadow-elegant-lg transition-all duration-300 hover:scale-105 hover:text-[#994d51]"
                   >
-                    Next
+                    Next →
                   </Link>
                 )}
               </div>

@@ -7,9 +7,9 @@ import MovieDetailsClient from "./MovieDetailsClient";
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
-    <div className="flex gap-2 text-sm">
-      <div className="text-[#6b4a4c] min-w-24">{label}</div>
-      <div className="text-[#1b0e0e]">{value}</div>
+    <div className="flex flex-col sm:flex-row gap-2 text-sm p-3 rounded-xl bg-white/30 border border-white/20 transition-all duration-300 hover:bg-white/50 hover:shadow-sm">
+      <div className="text-[#6b4a4c] font-semibold min-w-24">{label}:</div>
+      <div className="text-[#1b0e0e] font-medium">{value}</div>
     </div>
   );
 }
@@ -77,89 +77,125 @@ export default function MoviePageClient({ movieId }: { movieId: string }) {
       <div className="layout-container flex h-full grow flex-col">
         <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
           <div className="layout-content-container flex flex-col max-w-[1200px] flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
-              <h1 className="text-[#1b0e0e] tracking-light text-[28px] font-bold leading-tight break-words">{mv?.title ?? "Movie"}</h1>
-              <div className="inline-flex rounded-xl border border-[#e7d0d1] bg-white p-1 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 p-6 glass-strong rounded-2xl border border-white/30 shadow-elegant-lg mb-6">
+              <h1 className="gradient-text tracking-tight text-3xl sm:text-4xl font-bold leading-tight break-words">{mv?.title ?? "Movie"}</h1>
+              <div className="glass rounded-2xl overflow-hidden shadow-elegant">
                 <button
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'details' ? 'bg-[#994d51] text-white' : 'text-[#1b0e0e] hover:bg-[#f3e7e8]'}`}
+                  className={`px-6 py-3 text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${tab === 'details' ? 'bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white shadow-elegant' : 'text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:scale-105'}`}
                   onClick={() => setTab("details")}
-                >Details</button>
+                >
+                  {tab !== 'details' && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    📋 Details
+                  </span>
+                </button>
                 <button
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'edit' ? 'bg-[#994d51] text-white' : 'text-[#1b0e0e] hover:bg-[#f3e7e8]'}`}
+                  className={`px-6 py-3 text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${tab === 'edit' ? 'bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white shadow-elegant' : 'text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:scale-105'}`}
                   onClick={() => setTab("edit")}
-                >Edit</button>
+                >
+                  {tab !== 'edit' && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    ✏️ Edit
+                  </span>
+                </button>
               </div>
             </div>
 
             {isLoading && <div className="text-sm text-[#1b0e0e]">Loading...</div>}
 
             {!isLoading && mv && tab === "details" && (
-              <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
-                <div className="rounded-2xl overflow-hidden bg-white/80 border border-white/20 shadow-sm">
-                  <div className="aspect-[2/3] bg-[#f3e7e8] flex items-center justify-center">
+              <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
+                <div className="glass-strong rounded-2xl overflow-hidden border border-white/30 shadow-elegant-lg animate-float">
+                  <div className="aspect-[2/3] bg-gradient-to-br from-[#f3e7e8] to-[#e7d0d1] flex items-center justify-center relative overflow-hidden">
                     {mv.posterUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mv.posterUrl} alt={mv.title ?? ''} className="w-full h-full object-cover" />
+                      <img src={mv.posterUrl} alt={mv.title ?? ''} className="w-full h-full object-cover transition-transform duration-500 hover:scale-110" />
                     ) : (
-                      <div className="text-[#6b4a4c] text-xs p-4">No poster</div>
+                      <div className="text-[#994d51] text-6xl">
+                        🎬
+                        <div className="text-sm font-medium mt-4 text-[#6b4a4c]">No Poster Available</div>
+                      </div>
                     )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
                   </div>
                 </div>
-                <div className="flex flex-col gap-4 min-w-0">
-                  <div>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="text-2xl font-bold text-[#1b0e0e] break-words">
-                        {mv.title}
-                        {mv.year ? <span className="ml-2 text-[#6b4a4c] text-lg">({mv.year})</span> : null}
+                <div className="flex flex-col gap-6 min-w-0">
+                  <div className="glass-strong rounded-2xl p-6 border border-white/30 shadow-elegant">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-3xl font-bold text-[#1b0e0e] break-words mb-2">
+                          {mv.title}
+                          {mv.year ? <span className="ml-3 text-[#6b4a4c] text-xl font-medium">({mv.year})</span> : null}
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-sm">
+                          {mv.type ? <span className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#994d51]/20 to-[#7a3d41]/20 text-[#994d51] font-medium border border-[#994d51]/20">{mv.type}</span> : null}
+                          {(mv.genre ?? "")
+                            .split(",")
+                            .map((g) => g.trim())
+                            .filter(Boolean)
+                            .map((g) => (
+                              <span key={g} className="px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-700 font-medium border border-emerald-200">{g}</span>
+                            ))}
+                        </div>
                       </div>
                       {overall !== undefined ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#f3e7e8] px-2.5 py-1 text-sm text-[#1b0e0e]" title="Overall rating">
-                          <span>★</span>
-                          <span className="font-semibold">{overall.toFixed(1)}</span>
-                        </span>
+                        <div className="flex-shrink-0">
+                          <div className="glass rounded-2xl px-4 py-3 shadow-elegant border border-white/30 text-center">
+                            <div className="text-2xl font-bold gradient-text">{overall.toFixed(1)}</div>
+                            <div className="text-xs text-[#6b4a4c] font-medium mt-1">⭐ Overall Rating</div>
+                          </div>
+                        </div>
                       ) : null}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {mv.type ? <span className="px-2 py-1 rounded-full bg-[#f3e7e8] text-[#1b0e0e]">{mv.type}</span> : null}
-                      {(mv.genre ?? "")
-                        .split(",")
-                        .map((g) => g.trim())
-                        .filter(Boolean)
-                        .map((g) => (
-                          <span key={g} className="px-2 py-1 rounded-full bg-[#e6f6ef] text-[#135c36]">{g}</span>
-                        ))}
+                  </div>
+
+                  <div className="glass-strong rounded-2xl p-6 border border-white/30 shadow-elegant">
+                    <h3 className="text-lg font-semibold text-[#1b0e0e] mb-4 flex items-center gap-2">
+                      📊 Movie Details
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InfoRow label="Rated" value={mv.rated} />
+                      <InfoRow label="Runtime" value={mv.runtime} />
+                      <InfoRow label="Released" value={mv.released} />
+                      <InfoRow label="Language" value={mv.language} />
+                      <InfoRow label="Country" value={mv.country} />
+                      <InfoRow label="Awards" value={mv.awards} />
+                      <InfoRow label="Box Office" value={mv.boxOffice ?? undefined} />
+                      <InfoRow label="Website" value={mv.website} />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-white/20 bg-white/60 p-4">
-                    <InfoRow label="Rated" value={mv.rated} />
-                    <InfoRow label="Runtime" value={mv.runtime} />
-                    <InfoRow label="Released" value={mv.released} />
-                    <InfoRow label="Language" value={mv.language} />
-                    <InfoRow label="Country" value={mv.country} />
-                    <InfoRow label="Awards" value={mv.awards} />
-                    <InfoRow label="Box Office" value={mv.boxOffice ?? undefined} />
-                    <InfoRow label="Website" value={mv.website} />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/20 bg-white/60 p-4">
-                    <InfoRow label="Director" value={mv.director} />
-                    <InfoRow label="Writer" value={mv.writer} />
-                    <InfoRow label="Actors" value={mv.actors} />
+                  <div className="glass-strong rounded-2xl p-6 border border-white/30 shadow-elegant">
+                    <h3 className="text-lg font-semibold text-[#1b0e0e] mb-4 flex items-center gap-2">
+                      🎭 Cast & Crew
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <InfoRow label="Director" value={mv.director} />
+                      <InfoRow label="Writer" value={mv.writer} />
+                      <InfoRow label="Actors" value={mv.actors} />
+                    </div>
                   </div>
 
                   {mv.plot ? (
-                    <div className="rounded-2xl border border-white/20 bg-white/60 p-4">
-                      <div className="text-sm text-[#6b4a4c] mb-1">Plot</div>
+                    <div className="glass-strong rounded-2xl p-6 border border-white/30 shadow-elegant">
+                      <h3 className="text-lg font-semibold text-[#1b0e0e] mb-4 flex items-center gap-2">
+                        📖 Plot Summary
+                      </h3>
                       <div className="text-[#1b0e0e] text-sm leading-relaxed">{mv.plot}</div>
                     </div>
                   ) : null}
 
                   <div className="flex justify-end">
                     <button
-                      className="rounded-xl bg-[#994d51] px-3 py-2 text-sm text-white hover:bg-[#7a3d41]"
+                      className="glass rounded-xl px-6 py-3 text-sm font-semibold text-[#994d51] hover:text-white hover:bg-gradient-to-r hover:from-[#994d51] hover:to-[#7a3d41] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 border border-[#994d51]/30"
                       onClick={() => setTab("edit")}
-                    >Edit Scores</button>
+                    >
+                      ✏️ Edit Scores
+                    </button>
                   </div>
                 </div>
               </div>

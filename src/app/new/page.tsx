@@ -20,65 +20,71 @@ export default function Page() {
     redirect("/"+movie[0]?.id)
   }
     return (
-        <form action={create} className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-5">
-          <div className="layout-content-container flex flex-col w-full max-w-[512px] sm:max-w-[640px] md:max-w-[768px] lg:max-w-[960px] py-5 flex-1">
-
-            <div className="flex flex-wrap justify-between gap-3 p-4"><p className="text-[#191011] tracking-light text-[32px] font-bold leading-tight min-w-72">Add New Movie</p></div>
-            <div className="flex w-full max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
-
-              <label className="flex flex-col min-w-40 flex-1">
-                <p className="text-[#191011] text-base font-medium leading-normal pb-2">Title</p>
-                <input
-                  id="title-input"
-                  placeholder="Enter movie title"
-                  name="title"
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
-                />
-              </label>
-            </div>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
-              <label className="flex flex-col min-w-40 flex-1">
-                <p className="text-[#191011] text-base font-medium leading-normal pb-2">Type</p>
-                <input
-                  placeholder="Enter a type"
-                  name="type"
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
-                />
-              </label>
-            </div>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
-              <label className="flex flex-col min-w-40 flex-1">
-                <p className="text-[#191011] text-base font-medium leading-normal pb-2">Release Year</p>
-                <input
-                  id="year-input"
-                  placeholder="Enter release year"
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
-                  type="number"
-                  name="year"
-                />
-              </label>
-            </div>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
-              <label className="flex flex-col min-w-40 flex-1">
-                <p className="text-[#191011] text-base font-medium leading-normal pb-2">Genre</p>
-                <input
-                  placeholder="Enter genre"
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#191011] focus:outline-0 focus:ring-0 border border-[#e3d4d5] bg-[#fbf9f9] focus:border-[#e3d4d5] h-14 placeholder:text-[#8b5b5d] p-[15px] text-base font-normal leading-normal"
-                  name="genre"
-                />
-              </label>
-            </div>
-            <div className="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
-              <PosterUrlField />
-            </div>
-            <div className="flex px-4 py-3 justify-end">
-              <button
-              type="submit"
-                className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#e8b4b7] text-[#191011] text-sm font-bold leading-normal tracking-[0.015em]"
-              >
-                <span className="truncate">Add Movie</span>
-              </button>
+        <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
+          <div className="layout-content-container flex flex-col w-full max-w-[600px] py-8 flex-1">
+            <div className="glass-strong rounded-2xl p-8 shadow-elegant-xl border border-white/30">
+              <div className="text-center mb-8">
+                <h1 className="gradient-text text-4xl font-bold leading-tight mb-2">Add New Movie</h1>
+                <p className="text-[#6b4a4c] text-sm">Create a new movie entry for evaluation</p>
+              </div>
+              
+              <form action={create} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#6b4a4c] mb-2">🎬 Movie Title</label>
+                  <input
+                    id="title-input"
+                    placeholder="Enter movie title (e.g., Inception)"
+                    name="title"
+                    className="focus-ring w-full px-4 py-3 rounded-xl border border-white/30 bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60 text-[#1b0e0e] font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#6b4a4c] mb-2">📺 Type</label>
+                  <select
+                    name="type"
+                    className="focus-ring w-full px-4 py-3 rounded-xl border border-white/30 bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 text-[#1b0e0e] font-medium"
+                  >
+                    <option value="">Select type</option>
+                    <option value="movie">Movie</option>
+                    <option value="series">Series</option>
+                    <option value="episode">Episode</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#6b4a4c] mb-2">📅 Release Year</label>
+                  <input
+                    id="year-input"
+                    placeholder="Enter release year (e.g., 2010)"
+                    className="focus-ring w-full px-4 py-3 rounded-xl border border-white/30 bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60 text-[#1b0e0e] font-medium"
+                    type="number"
+                    name="year"
+                    min="1900"
+                    max="2030"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#6b4a4c] mb-2">🎭 Genre</label>
+                  <input
+                    placeholder="Enter genres (e.g., Action, Sci-Fi, Thriller)"
+                    className="focus-ring w-full px-4 py-3 rounded-xl border border-white/30 bg-white/50 backdrop-blur-sm transition-all duration-300 hover:bg-white/70 placeholder:text-[#6b4a4c]/60 text-[#1b0e0e] font-medium"
+                    name="genre"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <PosterUrlField />
+                </div>
+                
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    className="w-full px-6 py-4 bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white rounded-xl font-semibold shadow-elegant hover:shadow-elegant-lg transition-all duration-300 hover:scale-105 hover:from-[#7a3d41] hover:to-[#5d2e32] flex items-center justify-center gap-2"
+                  >
+                    <span>✨</span>
+                    Add Movie
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        </form>
+        </div>
     )}

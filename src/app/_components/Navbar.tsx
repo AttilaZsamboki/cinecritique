@@ -9,34 +9,44 @@ function NavLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className={`px-3 py-2 text-sm font-medium transition-colors duration-200 rounded-lg ${
+      className={`px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-xl relative overflow-hidden group ${
         isActive
-          ? "text-white bg-[#994d51] shadow-sm"
-          : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-[#f3e7e8]"
+          ? "text-white bg-gradient-to-r from-[#994d51] to-[#7a3d41] shadow-elegant"
+          : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:shadow-sm hover:scale-105"
       }`}
     >
-      {label}
+      {!isActive && (
+        <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      )}
+      <span className="relative z-10">{label}</span>
     </Link>
   );
 }
 
 export default function Navbar() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/20 bg-white/50 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 sm:px-8 lg:px-40 py-3">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="text-[#994d51]"><svg viewBox="0 0 48 48" width="24" height="24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 6H42L36 24L42 42H6L12 24L6 6Z"/></svg></div>
-          <h1 className="text-[#1b0e0e] text-lg font-bold tracking-[-0.015em]">CineCritique</h1>
+    <header className="sticky top-0 z-50 w-full glass-strong shadow-elegant">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 sm:px-8 lg:px-40 py-4">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="text-[#994d51] transition-transform duration-300 group-hover:scale-110 animate-float">
+            <svg viewBox="0 0 48 48" width="28" height="28" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 6H42L36 24L42 42H6L12 24L6 6Z"/>
+            </svg>
+          </div>
+          <h1 className="gradient-text text-xl font-bold tracking-[-0.02em] transition-all duration-300 group-hover:scale-105">
+            CineCritique
+          </h1>
         </Link>
-        <nav className="flex items-center gap-2 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap scrollbar-none">
+        <nav className="flex items-center gap-1 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap scrollbar-thin">
           <NavLink href="/" label="Home" />
           <NavLink href="/criteria" label="Criteria" />
           <NavLink href="/best-of" label="Best Of" />
           <NavLink href="/best/people" label="Best People" />
           <Link
             href="/new"
-            className="ml-2 inline-flex items-center h-9 rounded-xl px-3 text-sm font-semibold text-white bg-[#e92932] hover:bg-[#c61f27] transition-colors shadow-sm"
+            className="ml-3 inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 animate-pulse-glow"
           >
+            <span className="mr-2">+</span>
             New Evaluation
           </Link>
         </nav>
