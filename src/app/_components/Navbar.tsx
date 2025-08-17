@@ -42,6 +42,7 @@ export default function Navbar() {
           <NavLink href="/criteria" label="Criteria" />
           <NavLink href="/best-of" label="Best Of" />
           <NavLink href="/best/people" label="Best People" />
+          <NavLink href="/prestigious" label="Most Prestigious" />
           <Link
             href="/new"
             className="ml-3 inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 animate-pulse-glow"

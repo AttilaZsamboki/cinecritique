@@ -53,6 +53,17 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
     if (b.criteriaId && b.movieId) currentBestByCriteria[b.criteriaId] = { movieId: b.movieId, clipUrl: b.clipUrl ?? undefined };
   }
 
+  // For this movie, collect curated entries keyed by sub-criteria id
+  const curatedForThisMovie = useMemo(() => {
+    const m = new Map<string, { position?: number; clipUrl?: string }>();
+    for (const b of bestOfAll) {
+      if (b.movieId === movieId && b.criteriaId) {
+        m.set(b.criteriaId, { position: (b as any).position ?? undefined, clipUrl: b.clipUrl ?? undefined });
+      }
+    }
+    return m;
+  }, [bestOfAll, movieId]);
+
   // Minimal editor to include/exclude/inherit sub-criteria for this movie
   function OverridesEditor({ criterias, applicableIds, movieId, parentId }: { criterias: typeof allCriteria; applicableIds: Set<string | undefined>; movieId: string, parentId?: string }) {
     const subs = criterias.filter(c => c.parentId && (!parentId || c.parentId === parentId));
@@ -351,16 +362,28 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                             }}
                           />
                           <span className="text-[#1b0e0e] text-sm font-normal leading-normal">{(localSubAvg[sub.id] ?? subAverages[sub.id]) ?? '-'}</span>
-                          <button
-                            onClick={() => {
-                              setConfirm({ 
-                                criteriaId: sub.id,
-                              });
-                            }}
-                            className="ml-3 rounded-lg px-2.5 py-1.5 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium hover:bg-[#e7d0d1] transition-colors"
-                          >
-                            Add to Curated
-                          </button>
+                          {(() => {
+                            const entry = curatedForThisMovie.get(sub.id);
+                            if (entry) {
+                              return (
+                                <span className="ml-3 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  ✓ In Top{typeof entry.position === 'number' ? ` #${entry.position+1}` : ''}
+                                </span>
+                              );
+                            }
+                            return (
+                              <button
+                                onClick={() => {
+                                  setConfirm({ 
+                                    criteriaId: sub.id,
+                                  });
+                                }}
+                                className="ml-3 rounded-lg px-2.5 py-1.5 text-xs bg-[#f3e7e8] text-[#1b0e0e] font-medium hover:bg-[#e7d0d1] transition-colors"
+                              >
+                                Add to Curated
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

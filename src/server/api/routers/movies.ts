@@ -630,4 +630,81 @@ export const movieRouter = createTRPCRouter({
 
       return { total, page, pageSize, items: pageItems };
     }),
+
+  // Get most prestigious movies based on Best Of appearances with weighted scoring
+  getMostPrestigiousMovies: publicProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(100).optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      // Get all Best Of entries with their criteria and movie info
+      const bestOfEntries = await db.select({
+        movieId: bestOf.movieId,
+        criteriaId: bestOf.criteriaId,
+        position: bestOf.position,
+        criteriaName: criteria.name,
+        movieTitle: movie.title,
+        movieYear: movie.year,
+        moviePosterUrl: movie.posterUrl,
+      })
+      .from(bestOf)
+      .innerJoin(criteria, sql`${bestOf.criteriaId} = ${criteria.id}`)
+      .innerJoin(movie, sql`${bestOf.movieId} = ${movie.id}`)
+      .where(sql`${bestOf.movieId} IS NOT NULL AND ${bestOf.criteriaId} IS NOT NULL`);
+
+      // Calculate prestige scores for each movie
+      const moviePrestige: Record<string, {
+        movieId: string;
+        title: string | null;
+        year: number | null;
+        posterUrl: string | null;
+        totalScore: number;
+        appearances: Array<{
+          criteriaId: string;
+          criteriaName: string | null;
+          position: number;
+          score: number;
+        }>;
+      }> = {};
+
+      for (const entry of bestOfEntries) {
+        if (!entry.movieId) continue;
+
+        // Calculate weighted score: position 1 = 10 points, position 2 = 9 points, etc.
+        // Position 10+ = 1 point minimum
+        const position = entry.position ?? 10;
+        const score = Math.max(11 - position, 1);
+
+        if (!moviePrestige[entry.movieId]) {
+          moviePrestige[entry.movieId] = {
+            movieId: entry.movieId,
+            title: entry.movieTitle,
+            year: entry.movieYear,
+            posterUrl: entry.moviePosterUrl,
+            totalScore: 0,
+            appearances: [],
+          };
+        }
+
+        moviePrestige[entry.movieId].totalScore += score;
+        moviePrestige[entry.movieId].appearances.push({
+          criteriaId: entry.criteriaId!,
+          criteriaName: entry.criteriaName,
+          position,
+          score,
+        });
+      }
+
+      // Convert to array and sort by total score
+      const prestigiousMovies = Object.values(moviePrestige)
+        .sort((a, b) => b.totalScore - a.totalScore)
+        .slice(0, input.limit);
+
+      // Sort appearances within each movie by score (highest first)
+      prestigiousMovies.forEach(movie => {
+        movie.appearances.sort((a, b) => b.score - a.score);
+      });
+
+      return prestigiousMovies;
+    }),
 });
