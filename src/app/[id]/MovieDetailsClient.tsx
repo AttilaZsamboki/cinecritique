@@ -58,7 +58,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
     const m = new Map<string, { position?: number; clipUrl?: string }>();
     for (const b of bestOfAll) {
       if (b.movieId === movieId && b.criteriaId) {
-        m.set(b.criteriaId, { position: (b as any).position ?? undefined, clipUrl: b.clipUrl ?? undefined });
+        m.set(b.criteriaId, { position: b.position ?? undefined, clipUrl: b.clipUrl ?? undefined });
       }
     }
     return m;

@@ -57,7 +57,7 @@ export default function PrestigiousMoviesPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold gradient-text mb-4">Most Prestigious Movies</h1>
             <p className="text-[#6b4a4c] text-lg leading-relaxed">
-              Movies ranked by their appearances across multiple "Best Of" categories. 
+              Movies ranked by their appearances across multiple &#39;Best Of&#39; categories. 
               Position matters: #1 spots earn 10 points, #2 earns 9 points, down to 1 point for #10+.
             </p>
           </div>
@@ -161,7 +161,7 @@ export default function PrestigiousMoviesPage() {
               </div>
               <h3 className="text-xl font-semibold text-[#994d51] mb-2">No Prestigious Movies Yet</h3>
               <p className="text-[#6b4a4c] mb-4">
-                Start creating "Best Of" lists to see which movies appear most frequently across categories.
+                Start creating &#39;Best Of&#39; lists to see which movies appear most frequently across categories.
               </p>
               <Link
                 href="/best-of"

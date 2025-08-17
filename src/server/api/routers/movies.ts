@@ -686,8 +686,8 @@ export const movieRouter = createTRPCRouter({
           };
         }
 
-        moviePrestige[entry.movieId].totalScore += score;
-        moviePrestige[entry.movieId].appearances.push({
+        moviePrestige[entry.movieId]!.totalScore += score;
+        moviePrestige[entry.movieId]!.appearances.push({
           criteriaId: entry.criteriaId!,
           criteriaName: entry.criteriaName,
           position,
