@@ -92,3 +92,19 @@ export const criteriaDefaultApplicability = createTable("criteria_default_applic
   excludeGenresCsv: d.text("exclude_genres_csv"),
   createdAt: d.timestamp("created_at").default(sql`now()`),
 }));
+
+// Named scoring presets (weights) that can be saved/loaded and applied globally
+export const criteriaPreset = createTable("criteria_preset", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: d.text("name").notNull(),
+  description: d.text("description"),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+export const criteriaPresetWeight = createTable("criteria_preset_weight", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  presetId: d.text("preset_id").references(() => criteriaPreset.id),
+  criteriaId: d.text("criteria_id").references(() => criteria.id),
+  weight: d.integer("weight").notNull(),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));

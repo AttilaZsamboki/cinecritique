@@ -5,6 +5,8 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import Navbar from "./_components/Navbar";
+import { Toaster } from "~/components/ui/toast";
+import PWARegister from "./_components/PWARegister";
 
 export const metadata: Metadata = {
   title: "CineCritique",
@@ -24,6 +26,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${plusJakarta.variable}`}>
+      <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content="#994d51" />
+      </head>
       <body className="min-h-screen bg-gradient-to-br from-[#fcf8f8] via-[#f9f2f3] to-[#f5e8e9]">
         <TRPCReactProvider>
           {/* Skip link for keyboard users */}
@@ -37,6 +43,8 @@ export default function RootLayout({
           <main id="main" tabIndex={-1} className="outline-none">
             {children}
           </main>
+          <Toaster />
+          <PWARegister />
         </TRPCReactProvider>
       </body>
     </html>

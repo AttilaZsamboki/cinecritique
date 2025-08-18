@@ -11,6 +11,7 @@ import { useMemo, useState, type JSX } from "react";
 import { toYouTubeEmbedUrl } from "~/lib/utils";
 import CardActions from "../_components/CardActions";
 import UserNotes from "../_components/UserNotes";
+import { toast } from "~/components/ui/toast";
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   const router = useRouter();
@@ -26,21 +27,37 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   const fetchMovieData = api.omdb.getByTitle.useMutation({
     onSuccess: async () => {
       await utils.movie.getById.invalidate({ id: movieId });
+      toast({ kind: "success", message: "Poster fetched and updated." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Failed to fetch poster." });
     },
   })
   const upsertScore = api.movie.upsertEvaluationScore.useMutation({
     onSuccess: () => {
       utils.movie.getScoresByEvaluationIds.invalidate({ evalIds }).catch(() => {});
+      toast({ kind: "success", message: "Score saved." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Failed to save score." });
     },
   });
   const addToCurated = api.movie.addToBestOfList.useMutation({
     onSuccess: async () => {
       await utils.movie.getBestOfForAll.invalidate();
+      toast({ kind: "success", message: "Added to curated list." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Failed to add to curated list." });
     },
   });
   const updatePoster = api.movie.updateMoviePoster.useMutation({
     onSuccess: async () => {
       await utils.movie.getById.invalidate({ id: movieId });
+      toast({ kind: "success", message: "Poster updated." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Poster update failed." });
     },
   });
 
@@ -49,6 +66,10 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       // Ensure caches clear and navigate home
       await utils.movie.getById.invalidate({ id: movieId });
       router.push("/");
+      toast({ kind: "success", message: "Movie deleted." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Failed to delete movie." });
     },
   });
 
@@ -81,12 +102,19 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
     const subs = criterias.filter(c => c.parentId && (!parentId || c.parentId === parentId));
     const [q, setQ] = useState("");
     const { data: overrides = [], refetch } = api.movie.getMovieCriteriaOverrides.useQuery({ movieId });
+    // Local optimistic state keyed by criteriaId -> Mode | undefined
+    const [optimistic, setOptimistic] = useState<Record<string, 'inherit' | 'include' | 'exclude' | undefined>>({});
     const setOverride = api.movie.setMovieCriteriaOverride.useMutation({
       onSuccess: async () => {
         await Promise.all([
           refetch(),
           utils.movie.getApplicableCriteriaForMovie.invalidate({ movieId }),
         ]);
+        toast({ kind: 'success', message: 'Override saved.' });
+      },
+      onError: (_e, vars) => {
+        if (vars?.criteriaId) setOptimistic((p) => ({ ...p, [vars.criteriaId]: undefined }));
+        toast({ kind: 'error', message: 'Failed to save override.' });
       }
     });
     const clearOverride = api.movie.clearMovieCriteriaOverride.useMutation({
@@ -95,6 +123,11 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           refetch(),
           utils.movie.getApplicableCriteriaForMovie.invalidate({ movieId }),
         ]);
+        toast({ kind: 'success', message: 'Override cleared.' });
+      },
+      onError: (_e, vars) => {
+        if (vars?.criteriaId) setOptimistic((p) => ({ ...p, [vars.criteriaId]: undefined }));
+        toast({ kind: 'error', message: 'Failed to clear override.' });
       }
     });
 
@@ -119,7 +152,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
         {filtered.map(sc => {
           const id = sc.id;
           const effIncluded = applicableIds.has(id);
-          const ov = overrideMap.get(id);
+          const ov = optimistic[id] ?? overrideMap.get(id);
           const state: Mode = isMode(ov) ? ov : 'inherit';
           return (
             <div key={id} className="flex items-center justify-between border border-[#e7d0d1] rounded-xl px-3 py-2 bg-white/80">
@@ -137,17 +170,26 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
               <div className="flex items-center gap-1 bg-white rounded-lg border border-[#e7d0d1] p-0.5">
                 <button
                   className={`px-2 py-1 rounded-md text-xs ${state==='inherit' ? 'bg-[#f3e7e8] text-[#1b0e0e]' : 'text-[#6b4a4c]'}`}
-                  onClick={() => clearOverride.mutate({ movieId, criteriaId: id })}
+                  onClick={() => {
+                    setOptimistic(p => ({ ...p, [id]: 'inherit' }));
+                    clearOverride.mutate({ movieId, criteriaId: id });
+                  }}
                   title="Inherit"
                 >Inherit</button>
                 <button
                   className={`px-2 py-1 rounded-md text-xs ${state==='include' ? 'bg-[#e6f6ef] text-[#135c36]' : 'text-[#6b4a4c]'}`}
-                  onClick={() => setOverride.mutate({ movieId, criteriaId: id, mode: 'include' })}
+                  onClick={() => {
+                    setOptimistic(p => ({ ...p, [id]: 'include' }));
+                    setOverride.mutate({ movieId, criteriaId: id, mode: 'include' });
+                  }}
                   title="Include"
                 >Include</button>
                 <button
                   className={`px-2 py-1 rounded-md text-xs ${state==='exclude' ? 'bg-[#fde8ea] text-[#7a1f27]' : 'text-[#6b4a4c]'}`}
-                  onClick={() => setOverride.mutate({ movieId, criteriaId: id, mode: 'exclude' })}
+                  onClick={() => {
+                    setOptimistic(p => ({ ...p, [id]: 'exclude' }));
+                    setOverride.mutate({ movieId, criteriaId: id, mode: 'exclude' });
+                  }}
                   title="Exclude"
                 >Exclude</button>
               </div>
@@ -187,7 +229,11 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
         utils.movie.getById.invalidate({ id: movieId }),
         utils.movie.getApplicableCriteriaForMovie.invalidate({ movieId }),
       ]);
-    }
+      toast({ kind: "success", message: "Movie meta saved." });
+    },
+    onError: () => {
+      toast({ kind: "error", message: "Failed to save movie meta." });
+    },
   });
 
   if (movieLoading || criteriaLoading || applicableLoading) return <div>Loading...</div>;

@@ -78,6 +78,13 @@
       "when": 1755271243822,
       "tag": "0010_normal_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1755525041344,
+      "tag": "0011_equal_sway",
+      "breakpoints": true
     }
   ]
 }
