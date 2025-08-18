@@ -7,7 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip"
-import { useMemo, useState, type JSX } from "react";
+import { useMemo, useState, type JSX, useEffect } from "react";
 import { toYouTubeEmbedUrl } from "~/lib/utils";
 import CardActions from "../_components/CardActions";
 import UserNotes from "../_components/UserNotes";
@@ -138,6 +138,30 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
 
     const filtered = subs.filter(sc => (sc.name ?? "").toLowerCase().includes(q.toLowerCase()));
 
+    // Track hovered row to enable quick keyboard actions without focus juggling
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+    useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+        if (!hoveredId) return;
+        if (e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          setOptimistic(p => ({ ...p, [hoveredId]: 'include' }));
+          setOverride.mutate({ movieId, criteriaId: hoveredId, mode: 'include' });
+        } else if (e.key.toLowerCase() === 'e') {
+          e.preventDefault();
+          setOptimistic(p => ({ ...p, [hoveredId]: 'exclude' }));
+          setOverride.mutate({ movieId, criteriaId: hoveredId, mode: 'exclude' });
+        } else if (e.key.toLowerCase() === 'r' || e.key === 'Backspace') {
+          e.preventDefault();
+          setOptimistic(p => ({ ...p, [hoveredId]: 'inherit' }));
+          clearOverride.mutate({ movieId, criteriaId: hoveredId });
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }, [hoveredId, movieId]);
+
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -148,6 +172,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
+        <div className="text-xs text-[#6b4a4c] -mt-1">Tip: Hover a row and press I to Include, E to Exclude, R to Inherit.</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {filtered.map(sc => {
           const id = sc.id;
@@ -155,7 +180,10 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           const ov = optimistic[id] ?? overrideMap.get(id);
           const state: Mode = isMode(ov) ? ov : 'inherit';
           return (
-            <div key={id} className="flex items-center justify-between border border-[#e7d0d1] rounded-xl px-3 py-2 bg-white/80">
+            <div key={id} className="flex items-center justify-between border border-[#e7d0d1] rounded-xl px-3 py-2 bg-white/80"
+              onMouseEnter={() => setHoveredId(id)}
+              onMouseLeave={() => setHoveredId(current => current === id ? null : current)}
+            >
               <div className="text-sm text-[#1b0e0e] mr-3 min-w-0 flex-1">
                 <div className="font-medium truncate flex items-center gap-2">
                   <span className="truncate">{sc.name}</span>
@@ -306,6 +334,57 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
     return <div className="inline-flex items-center gap-0.5">{buttons}</div>;
   }
 
+  // Guided scoring mode: follow the same visual order (main criteria by weight desc, then their subs as rendered)
+  const orderedSubIds = useMemo(() => {
+    const order: string[] = [];
+    const mains = [...mainCriteria].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+    for (const main of mains) {
+      const subs = subCriteria.filter(sc => sc.parentId === main.id);
+      for (const s of subs) order.push(s.id as string);
+    }
+    return order;
+  }, [mainCriteria, subCriteria]);
+  const [guided, setGuided] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const currentSubId = orderedSubIds[currentIdx];
+  const currentSub = currentSubId ? criteriaById[currentSubId] : undefined;
+
+  const adjustScore = (delta: number) => {
+    const id = currentSubId;
+    if (!id) return;
+    const cur = localSubAvg[id] ?? (subAverages[id] ?? 0);
+    const next = Math.max(0, Math.min(5, cur + delta));
+    setLocalSubAvg(prev => ({ ...prev, [id]: next }));
+    upsertScore.mutate({ movieId: movie.id, criteriaId: id, score: next });
+  };
+
+  useEffect(() => {
+    if (!guided) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Number keys 1..5 map to whole stars 1..5
+      const key = e.key;
+      if (key >= '1' && key <= '5') {
+        e.preventDefault();
+        const id = currentSubId;
+        if (!id) return;
+        const v = Number(key);
+        setLocalSubAvg(prev => ({ ...prev, [id]: v }));
+        upsertScore.mutate({ movieId: movie.id, criteriaId: id, score: v });
+        setCurrentIdx(i => Math.min(i + 1, orderedSubIds.length - 1));
+        return;
+      }
+      if (key === 'ArrowRight') { e.preventDefault(); setCurrentIdx(i => Math.min(i + 1, orderedSubIds.length - 1)); return; }
+      if (key === 'ArrowLeft') { e.preventDefault(); setCurrentIdx(i => Math.max(i - 1, 0)); return; }
+      if (key === 'ArrowUp') { e.preventDefault(); adjustScore(0.5); return; }
+      if (key === 'ArrowDown') { e.preventDefault(); adjustScore(-0.5); return; }
+      if (key === 'Enter' || key === ' ') { e.preventDefault(); setCurrentIdx(i => Math.min(i + 1, orderedSubIds.length - 1)); return; }
+      if (key.toLowerCase() === 'g') { e.preventDefault(); setGuided(false); return; }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [guided, currentSubId, orderedSubIds.length, movie.id]);
+
   return (
     <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
       <div className="layout-container flex h-full grow flex-col">
@@ -353,6 +432,14 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 <span>★</span>
                 <span className="font-semibold">{overall ?? '-'}</span>
               </span>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  className={`h-8 rounded-xl px-3 text-xs shadow-sm border border-[#e7d0d1] ${guided ? 'bg-[#994d51] text-white' : 'bg-white text-[#1b0e0e]'}`}
+                  onClick={() => { setGuided(g => !g); if (!guided) setCurrentIdx(0); }}
+                  title="Toggle Guided Mode (G)"
+                >{guided ? 'Guided: On' : 'Guided: Off'}</button>
+                <span className="hidden sm:block text-[11px] text-[#6b4a4c]">Keys: 1–5 stars, ←/→ prev/next, ↑/↓ ±0.5, Enter next, G toggle</span>
+              </div>
             </div>
             {/* Radar chart of main criteria */}
             {Object.keys(mainValues).length > 0 && (
@@ -462,7 +549,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 {subCriteria.filter(sc => sc.parentId === main.id).map(sub => (
                   <div className="@container" key={sub.id}>
                     <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
-                      <div className="flex w-full shrink-[3] items-center justify-between">
+                      <div className={`flex w-full shrink-[3] items-center justify-between rounded-xl ${guided && currentSubId === sub.id ? 'ring-2 ring-[#994d51] ring-offset-2 ring-offset-white/60' : ''}`}>
                         <Tooltip>
                             <TooltipTrigger asChild>
                               <p className="text-[#1b0e0e] cursor-pointer text-base font-medium leading-normal">{sub.name}</p>
@@ -477,6 +564,9 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                             onChange={(v) => {
                               setLocalSubAvg((prev) => ({ ...prev, [sub.id]: v }));
                               upsertScore.mutate({ movieId: movie.id, criteriaId: sub.id, score: v });
+                              if (guided && currentSubId === sub.id) {
+                                setCurrentIdx(i => Math.min(i + 1, orderedSubIds.length - 1));
+                              }
                             }}
                           />
                           <span className="text-[#1b0e0e] text-sm font-normal leading-normal">{(localSubAvg[sub.id] ?? subAverages[sub.id]) ?? '-'}</span>
@@ -583,6 +673,31 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           </div>
         </div>
       )}
+      {guided && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+          <div className="rounded-2xl bg-white/90 backdrop-blur-md border border-[#e7d0d1] shadow-lg px-4 py-2 flex items-center gap-3 text-[#1b0e0e]">
+            <span className="text-sm font-medium">Guided Scoring</span>
+            {currentSub?.name ? (
+              <span className="max-w-[240px] truncate text-xs opacity-80" title={currentSub.name}>{currentSub.name}</span>
+            ) : null}
+            <span className="text-xs text-[#6b4a4c]">{currentIdx + 1} / {orderedSubIds.length}</span>
+            <div className="w-40 h-1.5 bg-[#f3e7e8] rounded-full overflow-hidden">
+              <div className="h-full bg-[#994d51]" style={{ width: `${orderedSubIds.length ? ((currentIdx+1)/orderedSubIds.length)*100 : 0}%` }} />
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-[11px] text-[#6b4a4c]">
+              <span>1–5: set</span>
+              <span>↑/↓: ±0.5</span>
+              <span>←/→: nav</span>
+              <span>Enter: next</span>
+              <span>G: exit</span>
+            </div>
+            <button
+              className="ml-2 h-7 rounded-xl px-2 text-xs border border-[#e7d0d1] bg-white hover:bg-[#f8f3f4]"
+              onClick={() => setGuided(false)}
+            >Exit</button>
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+}
