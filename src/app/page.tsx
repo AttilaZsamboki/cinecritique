@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { evaluation, evaluationScore, criteria, movie, movieWeightedCache } from "~/server/db/schema";
+import { evaluation, evaluationScore, criteria, movie, movieWeightedCache, movieGenre, genre as genreTable } from "~/server/db/schema";
 import { HydrateClient } from "~/trpc/server";
 import Link from "next/link";
 import { and, desc, eq, like, sql } from "drizzle-orm";
@@ -86,8 +86,16 @@ export default async function Home({
           actor ? like(movie.actors, `%${actor}%`) : sql`TRUE`,
           // Writer contains
           writer ? like(movie.writer, `%${writer}%`) : sql`TRUE`,
-          // Genre contains (any substring match over CSV field)
-          genre ? like(movie.genre, `%${genre}%`) : sql`TRUE`
+          // Genre filter using normalized tables (EXISTS over movie_genre -> genre by name ILIKE)
+          genre
+            ? sql`EXISTS (
+                SELECT 1
+                FROM ${movieGenre} mg
+                JOIN ${genreTable} g ON g.id = mg.genre_id
+                WHERE mg.movie_id = ${movie.id}
+                  AND g.name ILIKE ${`%${genre}%`}
+              )`
+            : sql`TRUE`
         )
       )
   );

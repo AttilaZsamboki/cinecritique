@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef } from "react";
+import { Poster } from "~/components/ui/Poster";
 
 export type CarouselItem = {
   id: string;
@@ -72,14 +73,15 @@ export function HorizontalCarousel({
       >
         {items.map((it, idx) => {
           const card = (
-            <div className="group relative block min-w-[180px] max-w-[200px] snap-start">
+            <div className="group relative block min-w-[180px] max-w-[200px] snap-start will-change-transform">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg border border-white/20 transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
                 <div className="aspect-[2/3] w-full overflow-hidden relative">
                   {it.posterUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Poster
                       src={it.posterUrl}
                       alt={it.title ?? "Poster"}
+                      width={500}
+                      height={750}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
                   ) : (

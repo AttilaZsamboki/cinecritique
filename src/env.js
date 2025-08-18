@@ -12,6 +12,7 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     OMDB_API_KEY: z.string().optional(),
+    TMDB_API_KEY: z.string().optional(),
     AUTH_SECRET: z.string().min(1),
     GITHUB_ID: z.string().optional(),
     GITHUB_SECRET: z.string().optional(),
@@ -37,6 +38,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     OMDB_API_KEY: process.env.OMDB_API_KEY,
+    TMDB_API_KEY: process.env.TMDB_API_KEY,
     AUTH_SECRET: process.env.AUTH_SECRET,
     GITHUB_ID: process.env.GITHUB_ID,
     GITHUB_SECRET: process.env.GITHUB_SECRET,

@@ -6,8 +6,562 @@ import { sql } from "drizzle-orm";
 import { criteria } from "~/server/db/schema";
 import { movie } from "~/server/db/schema";
 import { movieCriteriaOverride, criteriaDefaultApplicability } from "~/server/db/schema";
+import { env } from "~/env";
+import { genre, country, movieGenre, movieCountry } from "~/server/db/schema";
+
+// --- Helpers for normalized genre/country sync ---
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+const splitCsv = (csv: string | null | undefined): string[] =>
+  String(csv ?? "")
+    .split(/\s*,\s*/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+
+async function upsertGenreByName(name: string): Promise<string> {
+  const slug = slugify(name);
+  const existing = await db.query.genre.findFirst({ where: (g, { eq }) => eq(g.slug, slug) });
+  if (existing?.id) return existing.id;
+  const [row] = await db
+    .insert(genre)
+    .values({ name, slug })
+    .onConflictDoNothing({ target: genre.slug })
+    .returning();
+  if (row?.id) return row.id;
+  // If conflict happened and nothing returned, fetch again
+  const fetched = await db.query.genre.findFirst({ where: (g, { eq }) => eq(g.slug, slug) });
+  if (!fetched?.id) throw new Error("Failed to upsert genre");
+  return fetched.id;
+}
+
+async function upsertCountryByName(name: string): Promise<string> {
+  const slug = slugify(name);
+  const existing = await db.query.country.findFirst({ where: (c, { eq }) => eq(c.slug, slug) });
+  if (existing?.id) return existing.id;
+  const [row] = await db
+    .insert(country)
+    .values({ name, slug })
+    .onConflictDoNothing({ target: country.slug })
+    .returning();
+  if (row?.id) return row.id;
+  const fetched = await db.query.country.findFirst({ where: (c, { eq }) => eq(c.slug, slug) });
+  if (!fetched?.id) throw new Error("Failed to upsert country");
+  return fetched.id;
+}
+
+async function syncMovieGenres(movieId: string, genresCsv: string | null | undefined) {
+  const names = splitCsv(genresCsv);
+  // Full replace strategy for now
+  await db.delete(movieGenre).where(sql`movie_id = ${movieId}`);
+  for (let i = 0; i < names.length; i++) {
+    const gid = await upsertGenreByName(names[i]!);
+    await db
+      .insert(movieGenre)
+      .values({ movieId, genreId: gid, position: i })
+      .onConflictDoNothing();
+  }
+}
+
+async function syncMovieCountries(movieId: string, countriesCsv: string | null | undefined) {
+  const names = splitCsv(countriesCsv);
+  await db.delete(movieCountry).where(sql`movie_id = ${movieId}`);
+  for (const name of names) {
+    const cid = await upsertCountryByName(name);
+    await db
+      .insert(movieCountry)
+      .values({ movieId, countryId: cid })
+      .onConflictDoNothing();
+  }
+}
 
 export const movieRouter = createTRPCRouter({
+  // Import movie metadata from OMDb by title (and optional year)
+  importFromOmdbByTitle: publicProcedure
+    .input(z.object({ title: z.string().min(1), year: z.number().int().optional().nullable() }))
+    .mutation(async ({ input }) => {
+      if (!env.OMDB_API_KEY) throw new Error("OMDb API key is not configured");
+      const query = new URLSearchParams({
+        apikey: env.OMDB_API_KEY,
+        t: input.title,
+        plot: "full",
+        type: "movie",
+      });
+      if (input.year) query.set("y", String(input.year));
+      const url = `https://www.omdbapi.com/?${query.toString()}`;
+      const res = await fetch(url, { headers: { accept: "application/json" } });
+      if (!res.ok) throw new Error(`OMDb request failed: ${res.status}`);
+      const data: any = await res.json();
+      if (!data || String(data.Response).toLowerCase() !== "true") {
+        throw new Error(data?.Error ?? "Movie not found in OMDb");
+      }
+      // Map OMDb fields to our schema
+      const payload = {
+        title: data.Title ?? null,
+        type: data.Type ?? null,
+        year: data.Year ? Number(String(data.Year).slice(0, 4)) : null,
+        genre: data.Genre ?? null,
+        posterUrl: data.Poster && data.Poster !== "N/A" ? data.Poster : null,
+        imdbID: data.imdbID ?? null,
+        rated: data.Rated ?? null,
+        released: data.Released ?? null,
+        runtime: data.Runtime ?? null,
+        director: data.Director ?? null,
+        writer: data.Writer ?? null,
+        actors: data.Actors ?? null,
+        plot: data.Plot ?? null,
+        language: data.Language ?? null,
+        country: data.Country ?? null,
+        awards: data.Awards ?? null,
+        dvd: data.DVD ?? null,
+        boxOffice: data.BoxOffice ?? null,
+        production: data.Production ?? null,
+        website: data.Website ?? null,
+        response: data.Response ?? null,
+      } as const;
+
+      // Upsert by imdbID if present, else by title (unique)
+      let existing = null as Awaited<ReturnType<typeof db.query.movie.findFirst>> | null;
+      if (payload.imdbID) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.imdbID, payload.imdbID!) });
+      }
+      if (!existing && payload.title) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.title, payload.title!) });
+      }
+
+      if (existing?.id) {
+        await db.update(movie)
+          .set({
+            type: payload.type,
+            year: payload.year ?? null,
+            genre: payload.genre ?? null,
+            posterUrl: payload.posterUrl ?? null,
+            imdbID: payload.imdbID ?? null,
+            rated: payload.rated ?? null,
+            released: payload.released ?? null,
+            runtime: payload.runtime ?? null,
+            director: payload.director ?? null,
+            writer: payload.writer ?? null,
+            actors: payload.actors ?? null,
+            plot: payload.plot ?? null,
+            language: payload.language ?? null,
+            country: payload.country ?? null,
+            awards: payload.awards ?? null,
+            dvd: payload.dvd ?? null,
+            boxOffice: payload.boxOffice ?? null,
+            production: payload.production ?? null,
+            website: payload.website ?? null,
+            response: payload.response ?? null,
+          })
+          .where(sql`id = ${existing.id}`);
+        // Sync normalized relations
+        await syncMovieGenres(existing.id!, payload.genre);
+        await syncMovieCountries(existing.id!, payload.country);
+        const updated = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.id, existing!.id!) });
+        return updated;
+      } else {
+        const [created] = await db.insert(movie).values({
+          title: payload.title,
+          type: payload.type ?? null,
+          year: payload.year ?? null,
+          genre: payload.genre ?? null,
+          posterUrl: payload.posterUrl ?? null,
+          imdbID: payload.imdbID ?? null,
+          rated: payload.rated ?? null,
+          released: payload.released ?? null,
+          runtime: payload.runtime ?? null,
+          director: payload.director ?? null,
+          writer: payload.writer ?? null,
+          actors: payload.actors ?? null,
+          plot: payload.plot ?? null,
+          language: payload.language ?? null,
+          country: payload.country ?? null,
+          awards: payload.awards ?? null,
+          dvd: payload.dvd ?? null,
+          boxOffice: payload.boxOffice ?? null,
+          production: payload.production ?? null,
+          website: payload.website ?? null,
+          response: payload.response ?? null,
+        }).returning();
+        if (created?.id) {
+          await syncMovieGenres(created.id, payload.genre);
+          await syncMovieCountries(created.id, payload.country);
+        }
+        return created;
+      }
+    }),
+
+  // Import from TMDb by title (and optional year), picking the best match
+  importFromTmdbByTitle: publicProcedure
+    .input(z.object({ title: z.string().min(1), year: z.number().int().optional().nullable() }))
+    .mutation(async ({ input }) => {
+      if (!env.TMDB_API_KEY) throw new Error("TMDb API key is not configured");
+      const sparams = new URLSearchParams({
+        api_key: env.TMDB_API_KEY,
+        query: input.title,
+        include_adult: "false",
+      });
+      if (input.year) sparams.set("year", String(input.year));
+      const searchUrl = `https://api.themoviedb.org/3/search/movie?${sparams.toString()}`;
+      const sres = await fetch(searchUrl, { headers: { accept: "application/json" } });
+      if (!sres.ok) throw new Error(`TMDb search failed: ${sres.status}`);
+      const sjson: any = await sres.json();
+      const first = sjson?.results?.[0];
+      if (!first?.id) throw new Error("Movie not found in TMDb");
+      // Fetch details for the found TMDb ID and upsert
+      const dparams = new URLSearchParams({
+        api_key: env.TMDB_API_KEY,
+        append_to_response: "credits,external_ids",
+      });
+      const detailUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(String(first.id))}?${dparams.toString()}`;
+      const dres = await fetch(detailUrl, { headers: { accept: "application/json" } });
+      if (!dres.ok) throw new Error(`TMDb details failed: ${dres.status}`);
+      const d: any = await dres.json();
+      const getCrewByJob = (job: string) =>
+        (d?.credits?.crew ?? []).filter((c: any) => String(c.job).toLowerCase() === job.toLowerCase()).map((c: any) => c.name);
+      const directors = getCrewByJob("Director");
+      const writers = (d?.credits?.crew ?? [])
+        .filter((c: any) => ["Writer", "Screenplay", "Story"].includes(String(c.job)))
+        .map((c: any) => c.name);
+      const cast = (d?.credits?.cast ?? []).slice(0, 10).map((c: any) => c.name);
+      const posterUrl = d?.poster_path ? `https://image.tmdb.org/t/p/w500${d.poster_path}` : null;
+      const imdbID = d?.external_ids?.imdb_id || null;
+      const genres = Array.isArray(d?.genres) ? d.genres.map((g: any) => g.name).join(", ") : null;
+      const language = Array.isArray(d?.spoken_languages) ? d.spoken_languages.map((l: any) => l.english_name || l.name).join(", ") : null;
+      const country = Array.isArray(d?.production_countries) ? d.production_countries.map((c: any) => c.name).join(", ") : null;
+      const production = Array.isArray(d?.production_companies) ? d.production_companies.map((c: any) => c.name).join(", ") : null;
+      const runtimeText = typeof d?.runtime === "number" && d.runtime > 0 ? `${d.runtime} min` : null;
+      const year = (d?.release_date ? Number(String(d.release_date).slice(0, 4)) : null) ?? null;
+
+      const payload = {
+        title: d?.title ?? d?.original_title ?? null,
+        type: "movie",
+        year,
+        genre: genres,
+        posterUrl,
+        imdbID,
+        rated: null,
+        released: d?.release_date ?? null,
+        runtime: runtimeText,
+        director: directors.length ? directors.join(", ") : null,
+        writer: writers.length ? writers.join(", ") : null,
+        actors: cast.length ? cast.join(", ") : null,
+        plot: d?.overview ?? null,
+        language,
+        country,
+        awards: null,
+        dvd: null,
+        boxOffice: d?.revenue ? String(d.revenue) : null,
+        production,
+        website: d?.homepage ?? null,
+        response: null,
+      } as const;
+
+      let existing = null as Awaited<ReturnType<typeof db.query.movie.findFirst>> | null;
+      if (payload.imdbID) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.imdbID, payload.imdbID!) });
+      }
+      if (!existing && payload.title) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.title, payload.title!) });
+      }
+
+      if (existing?.id) {
+        await db.update(movie)
+          .set({
+            title: payload.title,
+            type: payload.type ?? null,
+            year: payload.year ?? null,
+            genre: payload.genre ?? null,
+            posterUrl: payload.posterUrl ?? null,
+            imdbID: payload.imdbID ?? null,
+            rated: payload.rated ?? null,
+            released: payload.released ?? null,
+            runtime: payload.runtime ?? null,
+            director: payload.director ?? null,
+            writer: payload.writer ?? null,
+            actors: payload.actors ?? null,
+            plot: payload.plot ?? null,
+            language: payload.language ?? null,
+            country: payload.country ?? null,
+            awards: payload.awards ?? null,
+            dvd: payload.dvd ?? null,
+            boxOffice: payload.boxOffice ?? null,
+            production: payload.production ?? null,
+            website: payload.website ?? null,
+            response: payload.response ?? null,
+          })
+          .where(sql`id = ${existing.id}`);
+        await syncMovieGenres(existing.id!, payload.genre);
+        await syncMovieCountries(existing.id!, payload.country);
+        const updated = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.id, existing!.id!) });
+        return updated;
+      } else {
+        const [created] = await db.insert(movie).values({
+          title: payload.title,
+          type: payload.type ?? null,
+          year: payload.year ?? null,
+          genre: payload.genre ?? null,
+          posterUrl: payload.posterUrl ?? null,
+          imdbID: payload.imdbID ?? null,
+          rated: payload.rated ?? null,
+          released: payload.released ?? null,
+          runtime: payload.runtime ?? null,
+          director: payload.director ?? null,
+          writer: payload.writer ?? null,
+          actors: payload.actors ?? null,
+          plot: payload.plot ?? null,
+          language: payload.language ?? null,
+          country: payload.country ?? null,
+          awards: payload.awards ?? null,
+          dvd: payload.dvd ?? null,
+          boxOffice: payload.boxOffice ?? null,
+          production: payload.production ?? null,
+          website: payload.website ?? null,
+          response: payload.response ?? null,
+        }).returning();
+        if (created?.id) {
+          await syncMovieGenres(created.id, payload.genre);
+          await syncMovieCountries(created.id, payload.country);
+        }
+        return created;
+      }
+    }),
+
+  // Import from TMDb using TMDb movie ID
+  importFromTmdbByTmdbId: publicProcedure
+    .input(z.object({ tmdbId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      if (!env.TMDB_API_KEY) throw new Error("TMDb API key is not configured");
+      const dparams = new URLSearchParams({
+        api_key: env.TMDB_API_KEY,
+        append_to_response: "credits,external_ids",
+      });
+      const detailUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(input.tmdbId)}?${dparams.toString()}`;
+      const dres = await fetch(detailUrl, { headers: { accept: "application/json" } });
+      if (!dres.ok) throw new Error(`TMDb details failed: ${dres.status}`);
+      const d: any = await dres.json();
+      const getCrewByJob = (job: string) =>
+        (d?.credits?.crew ?? []).filter((c: any) => String(c.job).toLowerCase() === job.toLowerCase()).map((c: any) => c.name);
+      const directors = getCrewByJob("Director");
+      const writers = (d?.credits?.crew ?? [])
+        .filter((c: any) => ["Writer", "Screenplay", "Story"].includes(String(c.job)))
+        .map((c: any) => c.name);
+      const cast = (d?.credits?.cast ?? []).slice(0, 10).map((c: any) => c.name);
+      const posterUrl = d?.poster_path ? `https://image.tmdb.org/t/p/w500${d.poster_path}` : null;
+      const imdbID = d?.external_ids?.imdb_id || null;
+      const genres = Array.isArray(d?.genres) ? d.genres.map((g: any) => g.name).join(", ") : null;
+      const language = Array.isArray(d?.spoken_languages) ? d.spoken_languages.map((l: any) => l.english_name || l.name).join(", ") : null;
+      const country = Array.isArray(d?.production_countries) ? d.production_countries.map((c: any) => c.name).join(", ") : null;
+      const production = Array.isArray(d?.production_companies) ? d.production_companies.map((c: any) => c.name).join(", ") : null;
+      const runtimeText = typeof d?.runtime === "number" && d.runtime > 0 ? `${d.runtime} min` : null;
+      const year = (d?.release_date ? Number(String(d.release_date).slice(0, 4)) : null) ?? null;
+
+      const payload = {
+        title: d?.title ?? d?.original_title ?? null,
+        type: "movie",
+        year,
+        genre: genres,
+        posterUrl,
+        imdbID,
+        rated: null,
+        released: d?.release_date ?? null,
+        runtime: runtimeText,
+        director: directors.length ? directors.join(", ") : null,
+        writer: writers.length ? writers.join(", ") : null,
+        actors: cast.length ? cast.join(", ") : null,
+        plot: d?.overview ?? null,
+        language,
+        country,
+        awards: null,
+        dvd: null,
+        boxOffice: d?.revenue ? String(d.revenue) : null,
+        production,
+        website: d?.homepage ?? null,
+        response: null,
+      } as const;
+
+      let existing = null as Awaited<ReturnType<typeof db.query.movie.findFirst>> | null;
+      if (payload.imdbID) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.imdbID, payload.imdbID!) });
+      }
+      if (!existing && payload.title) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.title, payload.title!) });
+      }
+
+      if (existing?.id) {
+        await db.update(movie)
+          .set({
+            title: payload.title,
+            type: payload.type ?? null,
+            year: payload.year ?? null,
+            genre: payload.genre ?? null,
+            posterUrl: payload.posterUrl ?? null,
+            imdbID: payload.imdbID ?? null,
+            rated: payload.rated ?? null,
+            released: payload.released ?? null,
+            runtime: payload.runtime ?? null,
+            director: payload.director ?? null,
+            writer: payload.writer ?? null,
+            actors: payload.actors ?? null,
+            plot: payload.plot ?? null,
+            language: payload.language ?? null,
+            country: payload.country ?? null,
+            awards: payload.awards ?? null,
+            dvd: payload.dvd ?? null,
+            boxOffice: payload.boxOffice ?? null,
+            production: payload.production ?? null,
+            website: payload.website ?? null,
+            response: payload.response ?? null,
+          })
+          .where(sql`id = ${existing.id}`);
+        await syncMovieGenres(existing.id!, payload.genre);
+        await syncMovieCountries(existing.id!, payload.country);
+        const updated = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.id, existing!.id!) });
+        return updated;
+      } else {
+        const [created] = await db.insert(movie).values({
+          title: payload.title,
+          type: payload.type ?? null,
+          year: payload.year ?? null,
+          genre: payload.genre ?? null,
+          posterUrl: payload.posterUrl ?? null,
+          imdbID: payload.imdbID ?? null,
+          rated: payload.rated ?? null,
+          released: payload.released ?? null,
+          runtime: payload.runtime ?? null,
+          director: payload.director ?? null,
+          writer: payload.writer ?? null,
+          actors: payload.actors ?? null,
+          plot: payload.plot ?? null,
+          language: payload.language ?? null,
+          country: payload.country ?? null,
+          awards: payload.awards ?? null,
+          dvd: payload.dvd ?? null,
+          boxOffice: payload.boxOffice ?? null,
+          production: payload.production ?? null,
+          website: payload.website ?? null,
+          response: payload.response ?? null,
+        }).returning();
+        if (created?.id) {
+          await syncMovieGenres(created.id, payload.genre);
+          await syncMovieCountries(created.id, payload.country);
+        }
+        return created;
+      }
+    }),
+
+  // Import movie metadata from OMDb by IMDb ID (e.g., tt0133093)
+  importFromOmdbByImdbId: publicProcedure
+    .input(z.object({ imdbId: z.string().min(2) }))
+    .mutation(async ({ input }) => {
+      if (!env.OMDB_API_KEY) throw new Error("OMDb API key is not configured");
+      const query = new URLSearchParams({
+        apikey: env.OMDB_API_KEY,
+        i: input.imdbId,
+        plot: "full",
+        type: "movie",
+      });
+      const url = `https://www.omdbapi.com/?${query.toString()}`;
+      const res = await fetch(url, { headers: { accept: "application/json" } });
+      if (!res.ok) throw new Error(`OMDb request failed: ${res.status}`);
+      const data: any = await res.json();
+      if (!data || String(data.Response).toLowerCase() !== "true") {
+        throw new Error(data?.Error ?? "Movie not found in OMDb");
+      }
+      const payload = {
+        title: data.Title ?? null,
+        type: data.Type ?? null,
+        year: data.Year ? Number(String(data.Year).slice(0, 4)) : null,
+        genre: data.Genre ?? null,
+        posterUrl: data.Poster && data.Poster !== "N/A" ? data.Poster : null,
+        imdbID: data.imdbID ?? null,
+        rated: data.Rated ?? null,
+        released: data.Released ?? null,
+        runtime: data.Runtime ?? null,
+        director: data.Director ?? null,
+        writer: data.Writer ?? null,
+        actors: data.Actors ?? null,
+        plot: data.Plot ?? null,
+        language: data.Language ?? null,
+        country: data.Country ?? null,
+        awards: data.Awards ?? null,
+        dvd: data.DVD ?? null,
+        boxOffice: data.BoxOffice ?? null,
+        production: data.Production ?? null,
+        website: data.Website ?? null,
+        response: data.Response ?? null,
+      } as const;
+
+      // Upsert by imdbID primarily, else by title
+      let existing = null as Awaited<ReturnType<typeof db.query.movie.findFirst>> | null;
+      if (payload.imdbID) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.imdbID, payload.imdbID!) });
+      }
+      if (!existing && payload.title) {
+        existing = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.title, payload.title!) });
+      }
+
+      if (existing?.id) {
+        await db.update(movie)
+          .set({
+            title: payload.title, // keep title up-to-date
+            type: payload.type ?? null,
+            year: payload.year ?? null,
+            genre: payload.genre ?? null,
+            posterUrl: payload.posterUrl ?? null,
+            imdbID: payload.imdbID ?? null,
+            rated: payload.rated ?? null,
+            released: payload.released ?? null,
+            runtime: payload.runtime ?? null,
+            director: payload.director ?? null,
+            writer: payload.writer ?? null,
+            actors: payload.actors ?? null,
+            plot: payload.plot ?? null,
+            language: payload.language ?? null,
+            country: payload.country ?? null,
+            awards: payload.awards ?? null,
+            dvd: payload.dvd ?? null,
+            boxOffice: payload.boxOffice ?? null,
+            production: payload.production ?? null,
+            website: payload.website ?? null,
+            response: payload.response ?? null,
+          })
+          .where(sql`id = ${existing.id}`);
+        await syncMovieGenres(existing.id!, payload.genre);
+        await syncMovieCountries(existing.id!, payload.country);
+        const updated = await db.query.movie.findFirst({ where: (m, { eq }) => eq(m.id, existing!.id!) });
+        return updated;
+      } else {
+        const [created] = await db.insert(movie).values({
+          title: payload.title,
+          type: payload.type ?? null,
+          year: payload.year ?? null,
+          genre: payload.genre ?? null,
+          posterUrl: payload.posterUrl ?? null,
+          imdbID: payload.imdbID ?? null,
+          rated: payload.rated ?? null,
+          released: payload.released ?? null,
+          runtime: payload.runtime ?? null,
+          director: payload.director ?? null,
+          writer: payload.writer ?? null,
+          actors: payload.actors ?? null,
+          plot: payload.plot ?? null,
+          language: payload.language ?? null,
+          country: payload.country ?? null,
+          awards: payload.awards ?? null,
+          dvd: payload.dvd ?? null,
+          boxOffice: payload.boxOffice ?? null,
+          production: payload.production ?? null,
+          website: payload.website ?? null,
+          response: payload.response ?? null,
+        }).returning();
+        if (created?.id) {
+          await syncMovieGenres(created.id, payload.genre);
+          await syncMovieCountries(created.id, payload.country);
+        }
+        return created;
+      }
+    }),
   upsertEvaluationScore: protectedProcedure
     .input(z.object({
       movieId: z.string(),
@@ -538,10 +1092,12 @@ export const movieRouter = createTRPCRouter({
 
       // Overall weighted score per movie (0-5)
       const movieScores: Record<string, number> = {};
+      const perMainByMovie: Record<string, Record<string, number>> = {};
       for (const mv of allMovies) {
         const evalIds = movieEvaluations[mv.id ?? ""] || [];
         let weightedSum = 0;
         let totalWeight = 0;
+        const mainValues: Record<string, number> = {};
         for (const main of mainCriteria) {
           const subs = subCriteria.filter((sc) => sc.parentId === main.id);
           let subWeightedSum = 0;
@@ -559,12 +1115,14 @@ export const movieRouter = createTRPCRouter({
               subTotalWeight += sub.weight ?? 0;
             }
           }
-          if (subTotalWeight > 0 && (main.weight ?? 0) > 0) {
+          if (subTotalWeight > 0 && (main.weight ?? 0) > 0 && main.id) {
             const mainValue = subWeightedSum / subTotalWeight;
+            mainValues[main.id] = mainValue;
             weightedSum += mainValue * (main.weight ?? 0);
             totalWeight += main.weight ?? 0;
           }
         }
+        if (mv.id) perMainByMovie[mv.id] = mainValues;
         if (totalWeight > 0) movieScores[mv.id ?? ""] = weightedSum / totalWeight;
       }
 
@@ -787,10 +1345,12 @@ export const movieRouter = createTRPCRouter({
       }
 
       const movieScores: Record<string, number> = {};
+      const perMainByMovie: Record<string, Record<string, number>> = {};
       for (const mv of allMovies) {
         const evalIds = movieEvaluations[mv.id ?? ""] || [];
         let weightedSum = 0;
         let totalWeight = 0;
+        const mainValues: Record<string, number> = {};
         for (const main of mainCriteria) {
           const subs = subCriteria.filter((sc) => sc.parentId === main.id);
           let subWeightedSum = 0;
@@ -808,12 +1368,14 @@ export const movieRouter = createTRPCRouter({
               subTotalWeight += sub.weight ?? 0;
             }
           }
-          if (subTotalWeight > 0 && (main.weight ?? 0) > 0) {
+          if (subTotalWeight > 0 && (main.weight ?? 0) > 0 && main.id) {
             const mainValue = subWeightedSum / subTotalWeight;
+            mainValues[main.id] = mainValue;
             weightedSum += mainValue * (main.weight ?? 0);
             totalWeight += main.weight ?? 0;
           }
         }
+        if (mv.id) perMainByMovie[mv.id] = mainValues;
         if (totalWeight > 0) movieScores[mv.id ?? ""] = weightedSum / totalWeight;
       }
 
@@ -874,6 +1436,23 @@ export const movieRouter = createTRPCRouter({
         ? allInvolved.map((id) => movieScores[id] ?? 0).reduce((a, b) => a + b, 0) / allInvolved.length
         : 0;
 
+      // Compute per-main-criteria strengths for this person across all involved movies
+      const strengths: Array<{ id: string; name: string | null; value: number }> = [];
+      for (const main of mainCriteria) {
+        if (!main.id) continue;
+        const vals: number[] = [];
+        for (const mvId of allInvolved) {
+          const record = perMainByMovie[mvId];
+          const v = record?.[main.id];
+          if (typeof v === 'number') vals.push(v);
+        }
+        if (vals.length > 0) {
+          const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+          strengths.push({ id: main.id, name: main.name ?? null, value: mean });
+        }
+      }
+      strengths.sort((a, b) => b.value - a.value);
+
       return {
         name: personName,
         average: avg,
@@ -881,6 +1460,7 @@ export const movieRouter = createTRPCRouter({
         actor: byRole.actor.slice(0, input.maxPerRole ?? 12),
         writer: byRole.writer.slice(0, input.maxPerRole ?? 12),
         director: byRole.director.slice(0, input.maxPerRole ?? 12),
+        criteriaStrengths: strengths,
       };
     }),
 

@@ -135,7 +135,7 @@ export default function PersonClient({ name }: { name: string }) {
             {data && (
               <div className="flex flex-col gap-8">
                 {/* Mini charts */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Role breakdown bars */}
                   <div className="rounded-2xl border border-white/20 bg-white/60 p-4">
                     <div className="text-sm font-semibold text-[#1b0e0e] mb-2">Role breakdown</div>
@@ -149,6 +149,11 @@ export default function PersonClient({ name }: { name: string }) {
                       director: data.director ?? [],
                       writer: data.writer ?? [],
                     }} />
+                  </div>
+                  {/* Criteria strengths */}
+                  <div className="rounded-2xl border border-white/20 bg-white/60 p-4">
+                    <div className="text-sm font-semibold text-[#1b0e0e] mb-2">Criteria strengths</div>
+                    <CriteriaStrengths strengths={(data as any).criteriaStrengths ?? []} />
                   </div>
                 </div>
 
@@ -388,6 +393,25 @@ function RoleBreakdownBars({ counts }: { counts: { actor: number; writer: number
             <div className="h-full" style={{ width: `${(e.value / max) * 100}%`, background: e.color }} />
           </div>
           <div className="w-8 text-right tabular-nums">{e.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CriteriaStrengths({ strengths }: { strengths: Array<{ id: string; name: string | null; value: number }> }) {
+  const items = (strengths ?? []).slice(0, 6);
+  if (items.length === 0) return <div className="text-xs text-[#6b4a4c]">No data</div>;
+  const max = 5; // scores normalized to 0..5
+  return (
+    <div className="space-y-2">
+      {items.map((s) => (
+        <div key={s.id} className="flex items-center gap-3 text-xs text-[#1b0e0e]">
+          <div className="w-28 truncate" title={s.name ?? ''}>{s.name ?? '—'}</div>
+          <div className="h-2 flex-1 rounded-full bg-[#f3e7e8] overflow-hidden">
+            <div className="h-full" style={{ width: `${Math.max(0, Math.min(1, (s.value ?? 0) / max)) * 100}%`, background: '#994d51' }} />
+          </div>
+          <div className="w-10 text-right tabular-nums">{(s.value ?? 0).toFixed(2)}</div>
         </div>
       ))}
     </div>

@@ -455,7 +455,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                     return { x: cx + rr * Math.cos(ang), y: cy + rr * Math.sin(ang) };
                   };
                   const points = entries.map((e, i) => {
-                    const v01 = Math.max(0, Math.min(1, (e.v ?? 0) / 10));
+                    const v01 = Math.max(0, Math.min(1, (e.v ?? 0) / 5));
                     return toPoint(i, v01);
                   });
                   const polygon = points.map(p => `${p.x},${p.y}`).join(" ");

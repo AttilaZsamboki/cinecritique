@@ -124,7 +124,52 @@ export default function CriteriaPage() {
  
 
   if (isLoadingNow) {
-    return <div className="px-4 sm:px-8 lg:px-40 py-8">Loading...</div>;
+    return (
+      <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
+        <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
+          {/* Header skeleton */}
+          <div className="p-6 bg-white/50 backdrop-blur-sm rounded-2xl shadow-sm border border-white/20 mb-6 dark:bg-zinc-900/40 dark:border-zinc-800">
+            <div className="h-8 w-56 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="h-4 w-80 mt-3 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="mt-5 flex gap-2 flex-wrap">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-9 w-32 bg-[#f3e7e8] dark:bg-zinc-800 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          </div>
+
+          {/* Main groups skeleton */}
+          {Array.from({ length: 3 }).map((_, gi) => (
+            <div key={gi} className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl shadow-sm mb-4">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="px-1 py-1 rounded text-[#c8b3b4]">⋮⋮</div>
+                  <div className="h-6 w-40 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                  <div className="h-4 w-10 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-24 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                  <div className="h-8 w-20 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                </div>
+              </div>
+              <div className="px-4 pb-4">
+                {Array.from({ length: 2 }).map((_, si) => (
+                  <div key={si} className="grid grid-cols-1 sm:grid-cols-[auto_20%_1fr_auto] items-start gap-3 border-t border-t-[#e7d0d1] py-3">
+                    <div className="px-1 py-1 rounded text-[#c8b3b4]">⋮⋮</div>
+                    <div className="h-6 w-40 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                    <div className="h-10 w-full bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-16 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                      <div className="h-8 w-20 bg-[#f3e7e8] dark:bg-zinc-800 rounded-lg animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (

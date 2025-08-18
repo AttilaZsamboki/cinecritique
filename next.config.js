@@ -5,6 +5,22 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      // TMDb
+      { protocol: "https", hostname: "image.tmdb.org" },
+      { protocol: "https", hostname: "a.ltrbxd.com" },
+      // OMDb / Amazon posters often resolve here
+      { protocol: "https", hostname: "m.media-amazon.com" },
+      { protocol: "https", hostname: "img.omdbapi.com" },
+      // Fallback common CDNs
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "i.imgur.com" },
+    ],
+  },
+};
 
 export default config;

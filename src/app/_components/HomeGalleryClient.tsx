@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { InteractiveCard } from "~/components/ui/InteractiveCard";
+import { Poster } from "~/components/ui/Poster";
 import CardActions from "./CardActions";
 import { cn } from "~/lib/utils";
 
@@ -98,8 +99,13 @@ export default function HomeGalleryClient({
           <InteractiveCard className="glass-strong border border-white/30">
             <div className="aspect-[2/3] w-full overflow-hidden relative">
               {m.posterUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.posterUrl} alt={m.title ?? "Poster"} className="w-full h-full object-cover transition-transform duration-200 ease-out group-hover:scale-[1.02]" />
+                <Poster
+                  src={m.posterUrl}
+                  alt={m.title ?? "Poster"}
+                  width={500}
+                  height={750}
+                  className="transition-transform duration-200 ease-out group-hover:scale-[1.02]"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-white/50 text-[#6b4a4c]">No poster</div>
               )}

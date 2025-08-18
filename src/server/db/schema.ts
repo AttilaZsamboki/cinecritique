@@ -159,3 +159,34 @@ export const movieWeightedCache = createTable("movie_weighted_cache", (d) => ({
   score: d.numeric("score", { precision: 3, scale: 1 }).notNull(),
   breakdownJson: d.text("breakdown_json"),
 }));
+
+// Normalized reference tables and junctions (preserve legacy CSV columns on `movie` during transition)
+export const genre = createTable("genre", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: d.text("name").notNull(),
+  slug: d.text("slug").notNull().unique(),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+export const country = createTable("country", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: d.text("name").notNull(),
+  iso2: d.text("iso2"), // optional ISO alpha-2 code
+  slug: d.text("slug").notNull().unique(),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+export const movieGenre = createTable("movie_genre", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  movieId: d.text("movie_id").notNull().references(() => movie.id),
+  genreId: d.text("genre_id").notNull().references(() => genre.id),
+  position: d.integer("position"), // order from source if available
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+export const movieCountry = createTable("movie_country", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  movieId: d.text("movie_id").notNull().references(() => movie.id),
+  countryId: d.text("country_id").notNull().references(() => country.id),
+  createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
