@@ -26,8 +26,17 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakarta.variable}`}>
       <body className="min-h-screen bg-gradient-to-br from-[#fcf8f8] via-[#f9f2f3] to-[#f5e8e9]">
         <TRPCReactProvider>
+          {/* Skip link for keyboard users */}
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 z-50 rounded-lg bg-white/90 px-4 py-2 text-sm font-semibold text-[#1b0e0e] shadow border border-white/40"
+          >
+            Skip to content
+          </a>
           <Navbar />
-          {children}
+          <main id="main" tabIndex={-1} className="outline-none">
+            {children}
+          </main>
         </TRPCReactProvider>
       </body>
     </html>

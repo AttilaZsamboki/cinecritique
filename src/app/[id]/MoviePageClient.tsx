@@ -174,9 +174,56 @@ export default function MoviePageClient({ movieId }: { movieId: string }) {
                       🎭 Cast & Crew
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
-                      <InfoRow label="Director" value={mv.director} />
-                      <InfoRow label="Writer" value={mv.writer} />
-                      <InfoRow label="Actors" value={mv.actors} />
+                      {/* Director chips */}
+                      {mv.director ? (
+                        <div className="flex flex-col sm:flex-row gap-2 text-sm p-3 rounded-xl bg-white/30 border border-white/20">
+                          <div className="text-[#6b4a4c] font-semibold min-w-24">Director:</div>
+                          <div className="flex flex-wrap gap-2">
+                            {mv.director.split(',').map(d => d.trim()).filter(Boolean).map(d => (
+                              <Link
+                                key={d}
+                                href={`/?director=${encodeURIComponent(d)}`}
+                                className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 text-[#994d51] font-medium border border-[#994d51]/20 hover:from-[#994d51]/20 hover:to-[#7a3d41]/20 transition-colors"
+                                title={`Filter by director: ${d}`}
+                              >{d}</Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Writer chips */}
+                      {mv.writer ? (
+                        <div className="flex flex-col sm:flex-row gap-2 text-sm p-3 rounded-xl bg-white/30 border border-white/20">
+                          <div className="text-[#6b4a4c] font-semibold min-w-24">Writer:</div>
+                          <div className="flex flex-wrap gap-2">
+                            {mv.writer.split(',').map(w => w.trim()).filter(Boolean).map(w => (
+                              <Link
+                                key={w}
+                                href={`/?writer=${encodeURIComponent(w)}`}
+                                className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 text-[#994d51] font-medium border border-[#994d51]/20 hover:from-[#994d51]/20 hover:to-[#7a3d41]/20 transition-colors"
+                                title={`Filter by writer: ${w}`}
+                              >{w}</Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Actor chips */}
+                      {mv.actors ? (
+                        <div className="flex flex-col sm:flex-row gap-2 text-sm p-3 rounded-xl bg-white/30 border border-white/20">
+                          <div className="text-[#6b4a4c] font-semibold min-w-24">Actors:</div>
+                          <div className="flex flex-wrap gap-2">
+                            {mv.actors.split(',').map(a => a.trim()).filter(Boolean).map(a => (
+                              <Link
+                                key={a}
+                                href={`/?actor=${encodeURIComponent(a)}`}
+                                className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 text-[#994d51] font-medium border border-[#994d51]/20 hover:from-[#994d51]/20 hover:to-[#7a3d41]/20 transition-colors"
+                                title={`Filter by actor: ${a}`}
+                              >{a}</Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

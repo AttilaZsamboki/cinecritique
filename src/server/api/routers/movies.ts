@@ -453,6 +453,32 @@ export const movieRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  // Force delete a movie and clean up all references
+  deleteMovieForce: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      // Delete bestOf entries referencing this movie
+      await db.delete(bestOf).where(sql`movie_id = ${input.id}`);
+
+      // Delete per-movie criteria overrides
+      await db.delete(movieCriteriaOverride).where(sql`movie_id = ${input.id}`);
+
+      // Delete evaluation scores for all evaluations of this movie
+      const evals = await db.query.evaluation.findMany({ where: (e, { eq }) => eq(e.movieId, input.id) });
+      for (const ev of evals) {
+        if (ev.id) {
+          await db.delete(evaluationScore).where(sql`evaluation_id = ${ev.id}`);
+        }
+      }
+
+      // Delete evaluations for this movie
+      await db.delete(evaluation).where(sql`movie_id = ${input.id}`);
+
+      // Finally delete the movie itself
+      await db.delete(movie).where(sql`id = ${input.id}`);
+      return { success: true };
+    }),
+
   // Compute top people by role, with averages and best movie poster
   getTopPeopleByRole: publicProcedure
     .input(z.object({
@@ -706,5 +732,279 @@ export const movieRouter = createTRPCRouter({
       });
 
       return prestigiousMovies;
+    }),
+
+  // Person overview: best movies, average, and role breakdown
+  getPersonOverview: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      maxPerRole: z.number().int().min(1).max(100).optional().default(12),
+      actorCriteriaId: z.string().optional().nullable(),
+    }))
+    .query(async ({ input }) => {
+      const personName = input.name.trim();
+      if (!personName) return null;
+
+      // Load required data (reuse same sets as other aggregations)
+      const [allCriteria, allMovies, evaluations, scores] = await Promise.all([
+        db.select().from(criteria),
+        db.select().from(movie),
+        db.select().from(evaluation),
+        db.select().from(evaluationScore),
+      ]);
+
+      const mainCriteria = allCriteria.filter((c) => !c.parentId);
+      const subCriteria = allCriteria.filter((c) => c.parentId);
+
+      const evalScores: Record<string, { criteriaId: string; score: number }[]> = {};
+      for (const s of scores) {
+        if (s.evaluationId && s.criteriaId != null && s.score != null) {
+          const arr = (evalScores[s.evaluationId] ||= []);
+          arr.push({ criteriaId: s.criteriaId, score: Number(s.score) });
+        }
+      }
+
+      const movieEvaluations: Record<string, string[]> = {};
+      for (const ev of evaluations) {
+        if (ev.movieId && ev.id) {
+          const arr = (movieEvaluations[ev.movieId] ||= []);
+          arr.push(ev.id);
+        }
+      }
+
+      const movieScores: Record<string, number> = {};
+      for (const mv of allMovies) {
+        const evalIds = movieEvaluations[mv.id ?? ""] || [];
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const main of mainCriteria) {
+          const subs = subCriteria.filter((sc) => sc.parentId === main.id);
+          let subWeightedSum = 0;
+          let subTotalWeight = 0;
+          for (const sub of subs) {
+            const subScores: number[] = [];
+            for (const evalId of evalIds) {
+              const scoresForEval = evalScores[evalId] || [];
+              const found = scoresForEval.find((s) => s.criteriaId === sub.id);
+              if (found) subScores.push(found.score);
+            }
+            if (subScores.length > 0 && (sub.weight ?? 0) > 0) {
+              const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
+              subWeightedSum += avg * (sub.weight ?? 0);
+              subTotalWeight += sub.weight ?? 0;
+            }
+          }
+          if (subTotalWeight > 0 && (main.weight ?? 0) > 0) {
+            const mainValue = subWeightedSum / subTotalWeight;
+            weightedSum += mainValue * (main.weight ?? 0);
+            totalWeight += main.weight ?? 0;
+          }
+        }
+        if (totalWeight > 0) movieScores[mv.id ?? ""] = weightedSum / totalWeight;
+      }
+
+      const actorSubScoreByMovie: Record<string, number | undefined> = {};
+      if (input.actorCriteriaId) {
+        const targetId = input.actorCriteriaId;
+        for (const mv of allMovies) {
+          const evalIds = movieEvaluations[mv.id ?? ""] || [];
+          const vals: number[] = [];
+          for (const eid of evalIds) {
+            const sarr = evalScores[eid] || [];
+            const f = sarr.find((s) => s.criteriaId === targetId);
+            if (f) vals.push(f.score);
+          }
+          if (vals.length > 0) actorSubScoreByMovie[mv.id ?? ""] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+      }
+
+      const splitCsv = (s?: string | null) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      const eqName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+      const roles: Array<"actor" | "writer" | "director"> = ["actor", "writer", "director"];
+      type MovieInfo = { id: string; title: string | null; year: number | null; posterUrl: string | null; score?: number; actorScore?: number };
+      const byRole: Record<string, MovieInfo[]> = { actor: [], writer: [], director: [] };
+      const seenMovies = new Set<string>();
+
+      for (const mv of allMovies) {
+        const mvId = mv.id ?? "";
+        if (!mvId) continue;
+        const overall = movieScores[mvId];
+        const perRoleNames: Record<string, string[]> = {
+          actor: splitCsv(mv.actors),
+          writer: splitCsv(mv.writer),
+          director: splitCsv(mv.director),
+        };
+        for (const role of roles) {
+          const names = perRoleNames[role];
+          if (names.some((n) => eqName(n, personName))) {
+            const info: MovieInfo = { id: mvId, title: mv.title ?? null, year: mv.year ?? null, posterUrl: mv.posterUrl ?? null, score: overall };
+            if (role === "actor" && input.actorCriteriaId) info.actorScore = actorSubScoreByMovie[mvId];
+            byRole[role].push(info);
+            seenMovies.add(mvId);
+          }
+        }
+      }
+
+      // Sort by overall score desc (fallback by title)
+      const sorter = (a: MovieInfo, b: MovieInfo) => {
+        const sa = a.score ?? 0;
+        const sb = b.score ?? 0;
+        if (sa !== sb) return sb - sa;
+        return (a.title ?? "").localeCompare(b.title ?? "");
+      };
+      for (const r of roles) byRole[r].sort(sorter);
+
+      const allInvolved = Array.from(seenMovies);
+      const avg = allInvolved.length > 0
+        ? allInvolved.map((id) => movieScores[id] ?? 0).reduce((a, b) => a + b, 0) / allInvolved.length
+        : 0;
+
+      return {
+        name: personName,
+        average: avg,
+        counts: { actor: byRole.actor.length, writer: byRole.writer.length, director: byRole.director.length },
+        actor: byRole.actor.slice(0, input.maxPerRole ?? 12),
+        writer: byRole.writer.slice(0, input.maxPerRole ?? 12),
+        director: byRole.director.slice(0, input.maxPerRole ?? 12),
+      };
+    }),
+
+  // List all movies for a person by role (for filtering/sorting/charts on People Page)
+  getPersonMovies: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      role: z.enum(["actor", "writer", "director"]),
+      actorCriteriaId: z.string().optional().nullable(),
+    }))
+    .query(async ({ input }) => {
+      const personName = input.name.trim();
+      if (!personName) return [] as Array<{
+        id: string; title: string | null; year: number | null; posterUrl: string | null; score?: number; actorScore?: number;
+      }>;
+
+      const [allCriteria, allMovies, evaluations, scores] = await Promise.all([
+        db.select().from(criteria),
+        db.select().from(movie),
+        db.select().from(evaluation),
+        db.select().from(evaluationScore),
+      ]);
+
+      const mainCriteria = allCriteria.filter((c) => !c.parentId);
+      const subCriteria = allCriteria.filter((c) => c.parentId);
+
+      const evalScores: Record<string, { criteriaId: string; score: number }[]> = {};
+      for (const s of scores) {
+        if (s.evaluationId && s.criteriaId != null && s.score != null) {
+          const arr = (evalScores[s.evaluationId] ||= []);
+          arr.push({ criteriaId: s.criteriaId, score: Number(s.score) });
+        }
+      }
+
+      const movieEvaluations: Record<string, string[]> = {};
+      for (const ev of evaluations) {
+        if (ev.movieId && ev.id) {
+          const arr = (movieEvaluations[ev.movieId] ||= []);
+          arr.push(ev.id);
+        }
+      }
+
+      const movieScores: Record<string, number> = {};
+      for (const mv of allMovies) {
+        const evalIds = movieEvaluations[mv.id ?? ""] || [];
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const main of mainCriteria) {
+          const subs = subCriteria.filter((sc) => sc.parentId === main.id);
+          let subWeightedSum = 0;
+          let subTotalWeight = 0;
+          for (const sub of subs) {
+            const subScores: number[] = [];
+            for (const evalId of evalIds) {
+              const scoresForEval = evalScores[evalId] || [];
+              const found = scoresForEval.find((s) => s.criteriaId === sub.id);
+              if (found) subScores.push(found.score);
+            }
+            if (subScores.length > 0 && (sub.weight ?? 0) > 0) {
+              const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
+              subWeightedSum += avg * (sub.weight ?? 0);
+              subTotalWeight += sub.weight ?? 0;
+            }
+          }
+          if (subTotalWeight > 0 && (main.weight ?? 0) > 0) {
+            const mainValue = subWeightedSum / subTotalWeight;
+            weightedSum += mainValue * (main.weight ?? 0);
+            totalWeight += main.weight ?? 0;
+          }
+        }
+        if (totalWeight > 0) movieScores[mv.id ?? ""] = weightedSum / totalWeight;
+      }
+
+      const actorSubScoreByMovie: Record<string, number | undefined> = {};
+      if (input.role === "actor" && input.actorCriteriaId) {
+        const targetId = input.actorCriteriaId;
+        for (const mv of allMovies) {
+          const evalIds = movieEvaluations[mv.id ?? ""] || [];
+          const vals: number[] = [];
+          for (const eid of evalIds) {
+            const sarr = evalScores[eid] || [];
+            const f = sarr.find((s) => s.criteriaId === targetId);
+            if (f) vals.push(f.score);
+          }
+          if (vals.length > 0) actorSubScoreByMovie[mv.id ?? ""] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+      }
+
+      const splitCsv = (s?: string | null) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      const eqName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+      const res: Array<{ id: string; title: string | null; year: number | null; posterUrl: string | null; score?: number; actorScore?: number }>= [];
+      for (const mv of allMovies) {
+        const mvId = mv.id ?? "";
+        if (!mvId) continue;
+        let names: string[] = [];
+        if (input.role === "actor") names = splitCsv(mv.actors);
+        else if (input.role === "writer") names = splitCsv(mv.writer);
+        else if (input.role === "director") names = splitCsv(mv.director);
+        if (names.some((n) => eqName(n, personName))) {
+          res.push({
+            id: mvId,
+            title: mv.title ?? null,
+            year: mv.year ?? null,
+            posterUrl: mv.posterUrl ?? null,
+            score: movieScores[mvId],
+            actorScore: input.role === "actor" ? actorSubScoreByMovie[mvId] : undefined,
+          });
+        }
+      }
+
+      return res;
+    }),
+
+  // Fetch person info (bio + thumbnail) from Wikipedia REST API
+  getPersonInfo: publicProcedure
+    .input(z.object({ name: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const title = encodeURIComponent(input.name.trim());
+      if (!title) return null as null | {
+        title: string; description?: string; extract?: string; thumbnailUrl?: string; wikipediaUrl?: string;
+      };
+      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+      try {
+        const res = await fetch(url, { headers: { 'accept': 'application/json' } });
+        if (!res.ok) return null;
+        const json: any = await res.json();
+        // If it's a disambiguation page, bail
+        if (json?.type === 'disambiguation') return null;
+        return {
+          title: json?.title ?? input.name,
+          description: json?.description ?? undefined,
+          extract: json?.extract ?? undefined,
+          thumbnailUrl: json?.thumbnail?.source ?? undefined,
+          wikipediaUrl: json?.content_urls?.desktop?.page ?? (json?.titles?.canonical ? `https://en.wikipedia.org/wiki/${json.titles.canonical}` : undefined),
+        };
+      } catch {
+        return null;
+      }
     }),
 });

@@ -150,8 +150,10 @@ export default function PeopleBestClient() {
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {data?.items.map((p) => (
-                <Link href={`/${p.bestMovieId}`} key={`${p.name}-${p.bestMovieId}`} className="group">
+              {data?.items.map((p) => {
+                const href = `/person/${encodeURIComponent(p.name)}`;
+                return (
+                <Link href={href} key={`${p.name}-${p.bestMovieId}`} className="group">
                   <div className="flex flex-col rounded-2xl overflow-hidden bg-white/80 border border-white/20 shadow-sm hover:shadow-md transition-shadow">
                     <div className="aspect-[2/3] bg-[#f3e7e8] flex items-center justify-center overflow-hidden">
                       {p.bestPosterUrl ? (
@@ -168,7 +170,7 @@ export default function PeopleBestClient() {
                     </div>
                   </div>
                 </Link>
-              ))}
+              );})}
             </div>
 
             <div className="flex items-center justify-between py-4">

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import {
   Tooltip,
@@ -8,8 +9,11 @@ import {
 } from "~/components/ui/tooltip"
 import { useMemo, useState, type JSX } from "react";
 import { toYouTubeEmbedUrl } from "~/lib/utils";
+import CardActions from "../_components/CardActions";
+import UserNotes from "../_components/UserNotes";
 
 export default function MovieDetailsClient({ movieId }: { movieId: string }) {
+  const router = useRouter();
   // Fetch all data via tRPC
   const { data: movie, isLoading: movieLoading } = api.movie.getById.useQuery({ id: movieId });
   const { data: allCriteria = [], isLoading: criteriaLoading } = api.movie.getAllCriteria.useQuery();
@@ -37,6 +41,14 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
   const updatePoster = api.movie.updateMoviePoster.useMutation({
     onSuccess: async () => {
       await utils.movie.getById.invalidate({ id: movieId });
+    },
+  });
+
+  const deleteMovie = api.movie.deleteMovieForce.useMutation({
+    onSuccess: async () => {
+      // Ensure caches clear and navigate home
+      await utils.movie.getById.invalidate({ id: movieId });
+      router.push("/");
     },
   });
 
@@ -255,7 +267,8 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
           <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
               <p className="text-[#1b0e0e] text-2xl font-bold leading-tight">Edit: {movie.title}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <CardActions movieId={movie.id} />
                 <input
                   type="url"
                   placeholder="Poster URL"
@@ -276,6 +289,16 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                     fetchMovieData.mutate({ title, year });
                   }}
                 >Fetch Poster</button>
+                <button
+                  className="h-9 rounded-xl px-3 text-sm bg-[#e92932] text-white shadow-sm hover:bg-[#c61f27]"
+                  onClick={() => {
+                    if (window.confirm("Delete this movie and all related ratings? This cannot be undone.")) {
+                      deleteMovie.mutate({ id: movie.id });
+                    }
+                  }}
+                  disabled={deleteMovie.isPending}
+                  title="Delete movie"
+                >Delete</button>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-white/70 border border-white/20 rounded-2xl shadow-sm">
@@ -285,6 +308,55 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 <span className="font-semibold">{overall ?? '-'}</span>
               </span>
             </div>
+            {/* Radar chart of main criteria */}
+            {Object.keys(mainValues).length > 0 && (
+              <div className="mt-3 p-4 bg-white/70 border border-white/20 rounded-2xl shadow-sm">
+                <h4 className="text-[#1b0e0e] text-sm font-semibold mb-2">Criteria Radar</h4>
+                {(() => {
+                  const entries = mainCriteria.map(m => ({ id: m.id as string, name: m.name as string, v: mainValues[m.id] ?? 0 }));
+                  const N = entries.length;
+                  const size = 220; const r = 90; const cx = 120; const cy = 120;
+                  const toPoint = (idx: number, value01: number) => {
+                    const ang = (Math.PI * 2 * idx) / N - Math.PI / 2;
+                    const rr = r * value01;
+                    return { x: cx + rr * Math.cos(ang), y: cy + rr * Math.sin(ang) };
+                  };
+                  const points = entries.map((e, i) => {
+                    const v01 = Math.max(0, Math.min(1, (e.v ?? 0) / 10));
+                    return toPoint(i, v01);
+                  });
+                  const polygon = points.map(p => `${p.x},${p.y}`).join(" ");
+                  const axes = entries.map((_, i) => {
+                    const p = toPoint(i, 1);
+                    return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#e7d0d1" strokeWidth={1} />
+                  });
+                  const rings = [0.25, 0.5, 0.75, 1].map((f, i) => (
+                    <circle key={i} cx={cx} cy={cy} r={r * f} fill="none" stroke="#f3e7e8" strokeDasharray="4 4" />
+                  ));
+                  return (
+                    <div className="flex items-center gap-4">
+                      <svg width={size} height={size} className="shrink-0">
+                        {rings}
+                        {axes}
+                        <polygon points={polygon} fill="#994d51" fillOpacity={0.25} stroke="#994d51" strokeWidth={2} />
+                        {points.map((p, i) => (
+                          <circle key={i} cx={p.x} cy={p.y} r={3} fill="#7a3d41" />
+                        ))}
+                      </svg>
+                      <div className="grid grid-cols-2 gap-1 text-xs text-[#1b0e0e]">
+                        {entries.map((e, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="inline-block size-2 rounded-full" style={{ background: i % 2 === 0 ? '#994d51' : '#7a3d41' }} />
+                            <span className="truncate max-w-[160px]" title={`${e.name}: ${e.v?.toFixed?.(1) ?? e.v}`}>{e.name}</span>
+                            <span className="ml-auto font-semibold">{(e.v ?? 0).toFixed(1)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {/* Movie meta inline editor and applicable count */}
             <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/20 bg-white/60 p-4">
               <div className="flex items-center justify-between">
@@ -406,13 +478,8 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
               </div>
             ))}
             <h3 className="text-[#1b0e0e] text-lg font-bold leading-tight tracking-[-0.015em] px-2 sm:px-4 pb-2 pt-4">Notes</h3>
-            <div className="flex max-w-[640px] flex-wrap items-end gap-4 px-2 sm:px-4 py-3">
-              <label className="flex flex-col min-w-40 flex-1">
-                <textarea
-                  placeholder="Enter your notes here..."
-                  className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-2xl text-[#1b0e0e] focus:outline-0 focus:ring-0 border border-[#e7d0d1] bg-white/80 backdrop-blur-sm focus:border-[#e7d0d1] min-h-36 placeholder:text-[#994d51] p-[15px] text-base font-normal leading-normal shadow-sm"
-                ></textarea>
-              </label>
+            <div className="px-2 sm:px-4 py-3 max-w-[840px]">
+              <UserNotes movieId={movie.id} />
             </div>
             <div className="flex px-2 sm:px-4 py-3 justify-end">
               <button
