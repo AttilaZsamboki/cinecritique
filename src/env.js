@@ -12,6 +12,12 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     OMDB_API_KEY: z.string().optional(),
+    AUTH_SECRET: z.string().min(1),
+    GITHUB_ID: z.string().optional(),
+    GITHUB_SECRET: z.string().optional(),
+    GOOGLE_ID: z.string().optional(),
+    GOOGLE_SECRET: z.string().optional(),
+    ADMIN_EMAILS: z.string().optional(), // comma-separated list
   },
 
   /**
@@ -31,6 +37,12 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     OMDB_API_KEY: process.env.OMDB_API_KEY,
+    AUTH_SECRET: process.env.AUTH_SECRET,
+    GITHUB_ID: process.env.GITHUB_ID,
+    GITHUB_SECRET: process.env.GITHUB_SECRET,
+    GOOGLE_ID: process.env.GOOGLE_ID,
+    GOOGLE_SECRET: process.env.GOOGLE_SECRET,
+    ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

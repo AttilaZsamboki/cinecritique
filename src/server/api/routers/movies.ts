@@ -1,26 +1,28 @@
 import { db } from "~/server/db";
 import { bestOf, evaluation, evaluationScore } from "~/server/db/schema";
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { sql } from "drizzle-orm";
 import { criteria } from "~/server/db/schema";
 import { movie } from "~/server/db/schema";
 import { movieCriteriaOverride, criteriaDefaultApplicability } from "~/server/db/schema";
 
 export const movieRouter = createTRPCRouter({
-  upsertEvaluationScore: publicProcedure
+  upsertEvaluationScore: protectedProcedure
     .input(z.object({
       movieId: z.string(),
       criteriaId: z.string(),
       score: z.number().min(0).max(5),
     }))
-    .mutation(async ({ input }) => {
-      // Find or create evaluation for this movie (single-user, so just one evaluation per movie)
-      let evalRow = await db.query.evaluation.findFirst({ where: (e, { eq }) => eq(e.movieId, input.movieId) });
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      // Find or create evaluation for this movie scoped to user
+      let evalRow = await db.query.evaluation.findFirst({ where: (e, { eq, and }) => and(eq(e.movieId, input.movieId), eq(e.userId, userId)) });
       if (!evalRow) {
         const [newEval] = await db.insert(evaluation).values({
           movieId: input.movieId,
           date: new Date(),
+          userId,
         }).returning();
         evalRow = newEval;
       }
@@ -44,18 +46,20 @@ export const movieRouter = createTRPCRouter({
     }),
 
   // List overrides for a movie
-  getMovieCriteriaOverrides: publicProcedure
+  getMovieCriteriaOverrides: protectedProcedure
     .input(z.object({ movieId: z.string() }))
-    .query(async ({ input }) => {
-      return db.query.movieCriteriaOverride.findMany({ where: (o, { eq }) => eq(o.movieId, input.movieId) });
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      return db.query.movieCriteriaOverride.findMany({ where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.userId, userId)) });
     }),
 
   // Clear override (delete) for a movie+criteria
-  clearMovieCriteriaOverride: publicProcedure
+  clearMovieCriteriaOverride: protectedProcedure
     .input(z.object({ movieId: z.string(), criteriaId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
       const existing = await db.query.movieCriteriaOverride.findFirst({
-        where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.criteriaId, input.criteriaId)),
+        where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.criteriaId, input.criteriaId), eq(o.userId, userId)),
       });
       if (existing) {
         await db.delete(movieCriteriaOverride).where(sql`id = ${existing.id}`);
@@ -63,34 +67,38 @@ export const movieRouter = createTRPCRouter({
       return { success: true };
     }),
   // Best-of endpoints
-  setBestOf: publicProcedure
+  setBestOf: protectedProcedure
     .input(z.object({ criteriaId: z.string(), movieId: z.string(), clipUrl: z.string().optional().nullable() }))
-    .mutation(async ({ input }) => {
-      // Upsert one global best for the criteria
-      const existing = await db.query.bestOf.findFirst({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      // Upsert one per-user best for the criteria
+      const existing = await db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.userId, userId)) });
       if (existing) {
         await db.update(bestOf)
           .set({ movieId: input.movieId, clipUrl: input.clipUrl ?? null })
           .where(sql`id = ${existing.id}`);
       } else {
-        await db.insert(bestOf).values({ criteriaId: input.criteriaId, movieId: input.movieId, clipUrl: input.clipUrl ?? null });
+        await db.insert(bestOf).values({ criteriaId: input.criteriaId, movieId: input.movieId, clipUrl: input.clipUrl ?? null, userId });
       }
       return { success: true };
     }),
-  getBestOfForAll: publicProcedure
-    .query(async () => {
-      return db.select().from(bestOf);
+  getBestOfForAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      return db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.userId, userId) });
     }),
-  getBestOfForCriteria: publicProcedure
+  getBestOfForCriteria: protectedProcedure
     .input(z.object({ criteriaId: z.string() }))
-    .query(async ({ input }) => {
-      return db.query.bestOf.findFirst({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      return db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.userId, userId)) });
     }),
   // Curated list (top-N) endpoints
-  addToBestOfList: publicProcedure
+  addToBestOfList: protectedProcedure
     .input(z.object({ criteriaId: z.string(), movieId: z.string(), clipUrl: z.string().optional().nullable() }))
-    .mutation(async ({ input }) => {
-      const existingForCriteria = await db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      const existingForCriteria = await db.query.bestOf.findMany({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.userId, userId)) });
       // If the movie already exists in the list, just update clip
       const existingMovie = existingForCriteria.find((r) => r.movieId === input.movieId);
       if (existingMovie) {
@@ -103,16 +111,18 @@ export const movieRouter = createTRPCRouter({
         movieId: input.movieId,
         clipUrl: input.clipUrl ?? null,
         position: maxPos + 1,
+        userId,
       });
       return { success: true };
     }),
-  replaceInBestOfList: publicProcedure
+  replaceInBestOfList: protectedProcedure
     .input(z.object({ criteriaId: z.string(), oldMovieId: z.string(), newMovieId: z.string() }))
-    .mutation(async ({ input }) => {
-      const row = await db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.movieId, input.oldMovieId)) });
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      const row = await db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.movieId, input.oldMovieId), eq(b.userId, userId)) });
       if (!row) throw new Error("Old movie is not in the curated list");
       // If the new movie already exists, swap their movieIds by assigning new to this row and delete the duplicate
-      const dup = await db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.movieId, input.newMovieId)) });
+      const dup = await db.query.bestOf.findFirst({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.movieId, input.newMovieId), eq(b.userId, userId)) });
       if (dup) {
         // Remove duplicate; keep current row and set its movieId to newMovieId
         await db.update(bestOf).set({ movieId: input.newMovieId }).where(sql`id = ${row.id}`);
@@ -122,11 +132,12 @@ export const movieRouter = createTRPCRouter({
       }
       return { success: true };
     }),
-  reorderBestOfList: publicProcedure
+  reorderBestOfList: protectedProcedure
     .input(z.object({ criteriaId: z.string(), orderedMovieIds: z.array(z.string()) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
       // Fetch all rows for criteria
-      const rows = await db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+      const rows = await db.query.bestOf.findMany({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.userId, userId)) });
       // Map movieId -> row (guard against null movieId)
       const map = new Map<string, typeof rows[number]>()
       for (const r of rows) {
@@ -142,10 +153,11 @@ export const movieRouter = createTRPCRouter({
       }
       return { success: true };
     }),
-  getBestOfListForCriteria: publicProcedure
+  getBestOfListForCriteria: protectedProcedure
     .input(z.object({ criteriaId: z.string() }))
-    .query(async ({ input }) => {
-      const rows = await db.query.bestOf.findMany({ where: (b, { eq }) => eq(b.criteriaId, input.criteriaId) });
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      const rows = await db.query.bestOf.findMany({ where: (b, { and, eq }) => and(eq(b.criteriaId, input.criteriaId), eq(b.userId, userId)) });
       // Sort position asc (nulls last), then createdAt desc as tiebreaker
       return rows.sort((a, b) => {
         const pa = a.position ?? Number.MAX_SAFE_INTEGER;
@@ -270,10 +282,11 @@ export const movieRouter = createTRPCRouter({
       }
       return { success: true };
     }),
-  getEvaluationsByMovie: publicProcedure
+  getEvaluationsByMovie: protectedProcedure
     .input(z.object({ movieId: z.string() }))
-    .query(async ({ input }) => {
-      return db.query.evaluation.findMany({ where: (e, { eq }) => eq(e.movieId, input.movieId) });
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
+      return db.query.evaluation.findMany({ where: (e, { and, eq }) => and(eq(e.movieId, input.movieId), eq(e.userId, userId)) });
     }),
   getScoresByEvaluationIds: publicProcedure
     .input(z.object({ evalIds: z.array(z.string()) }))
@@ -364,18 +377,19 @@ export const movieRouter = createTRPCRouter({
     }),
 
   // Upsert a per-movie criteria override
-  setMovieCriteriaOverride: publicProcedure
+  setMovieCriteriaOverride: protectedProcedure
     .input(z.object({ movieId: z.string(), criteriaId: z.string(), mode: z.enum(["include", "exclude"]) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session!.user!.id as string;
       const existing = await db.query.movieCriteriaOverride.findFirst({
-        where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.criteriaId, input.criteriaId)),
+        where: (o, { and, eq }) => and(eq(o.movieId, input.movieId), eq(o.criteriaId, input.criteriaId), eq(o.userId, userId)),
       });
       if (existing) {
         await db.update(movieCriteriaOverride)
           .set({ mode: input.mode })
           .where(sql`id = ${existing.id}`);
       } else {
-        await db.insert(movieCriteriaOverride).values({ movieId: input.movieId, criteriaId: input.criteriaId, mode: input.mode });
+        await db.insert(movieCriteriaOverride).values({ movieId: input.movieId, criteriaId: input.criteriaId, mode: input.mode, userId });
       }
       return { success: true };
     }),

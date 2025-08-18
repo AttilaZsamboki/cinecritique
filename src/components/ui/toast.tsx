@@ -33,14 +33,32 @@ export function Toaster() {
   }, []);
 
   return (
-    <div className="fixed z-[1000] bottom-4 right-4 flex flex-col gap-2">
+    <div
+      className="fixed z-[1000] bottom-4 right-4 flex flex-col gap-2"
+      aria-live="polite"
+      aria-relevant="additions removals"
+    >
       {Array.isArray(items) && items.map((i) => (
-        <div key={i.id} className={`rounded-xl px-3 py-2 shadow-lg border text-sm backdrop-blur-sm ${
-          i.kind === "success" ? "bg-emerald-50/90 border-emerald-200 text-emerald-900" :
-          i.kind === "error" ? "bg-rose-50/90 border-rose-200 text-rose-900" :
-          "bg-white/90 border-[#e7d0d1] text-[#1b0e0e]"
-        }`}>
-          {i.message}
+        <div
+          key={i.id}
+          role="status"
+          className={
+            `group rounded-xl px-3 py-2 shadow-lg border text-sm backdrop-blur-sm flex items-start gap-3 max-w-[360px] ` +
+            (i.kind === "success"
+              ? "bg-emerald-50/90 border-emerald-200 text-emerald-900 dark:bg-emerald-900/40 dark:border-emerald-800 dark:text-emerald-50"
+              : i.kind === "error"
+              ? "bg-rose-50/90 border-rose-200 text-rose-900 dark:bg-rose-900/40 dark:border-rose-800 dark:text-rose-50"
+              : "bg-white/90 border-[#e7d0d1] text-[#1b0e0e] dark:bg-zinc-900/70 dark:border-zinc-800 dark:text-zinc-50")
+          }
+        >
+          <span className="pt-0.5">{i.message}</span>
+          <button
+            onClick={() => setItems(prev => prev.filter(x => x.id !== i.id))}
+            aria-label="Dismiss notification"
+            className="ml-auto opacity-70 hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded-md bg-white/40 dark:bg-zinc-800/60 border border-white/30 dark:border-zinc-700"
+          >
+            Close
+          </button>
         </div>
       ))}
     </div>

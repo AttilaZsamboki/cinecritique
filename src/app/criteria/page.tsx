@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
- 
+
+type Preset = { id: string; name: string; description: string | null; createdAt?: string; weightsCount?: number };
 
 export default function CriteriaPage() {
   const { data: allCriteria = [], isLoading } = api.movie.getAllCriteria.useQuery();
@@ -23,6 +24,61 @@ export default function CriteriaPage() {
     onSuccess: () => utils.movie.getAllCriteria.invalidate().catch(() => {}),
   });
   const { data: refInfo = {} } = api.movie.getCriteriaReferenceInfo.useQuery();
+
+  // Presets UI state
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [applyBusy, setApplyBusy] = useState(false);
+
+  const loadPresets = async () => {
+    try {
+      setPresetsLoading(true);
+      const res = await fetch("/api/presets", { cache: "no-store" });
+      const data = await res.json();
+      setPresets(data.presets ?? []);
+    } catch {
+      // noop
+    } finally {
+      setPresetsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadPresets();
+  }, []);
+
+  const createPresetFromCurrent = async () => {
+    try {
+      const res = await fetch("/api/presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newPresetName || "Preset" }),
+      });
+      if (res.ok) {
+        setNewPresetName("");
+        await loadPresets();
+      }
+    } catch {}
+  };
+
+  const applyPreset = async () => {
+    if (!selectedPresetId) return;
+    try {
+      setApplyBusy(true);
+      const res = await fetch("/api/presets/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ presetId: selectedPresetId }),
+      });
+      if (res.ok) {
+        await utils.movie.getAllCriteria.invalidate().catch(() => {});
+      }
+    } finally {
+      setApplyBusy(false);
+    }
+  };
 
   // Local state for weights (optimistic UI)
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -74,12 +130,12 @@ export default function CriteriaPage() {
   return (
     <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
       <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 bg-white/50 backdrop-blur-sm rounded-2xl shadow-sm border border-white/20 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 bg-white/50 backdrop-blur-sm rounded-2xl shadow-sm border border-white/20 mb-6 dark:bg-zinc-900/40 dark:border-zinc-800">
           <div>
             <h1 className="text-[#1b0e0e] tracking-tight text-3xl sm:text-4xl font-bold leading-tight">Evaluation Criteria</h1>
             <p className="text-[#6b4a4c] mt-2 text-sm sm:text-base">Manage main and sub-criteria, weights, order and descriptions.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
               onClick={() => createCriteria.mutate({ name: "New Group", weight: 0, parentId: null })}
               className="h-9 rounded-xl px-3 text-sm bg-[#994d51] text-white shadow-sm hover:bg-[#7a3d41] transition-colors"
@@ -99,6 +155,38 @@ export default function CriteriaPage() {
               className="h-9 rounded-xl px-3 text-sm bg-[#f3e7e8] text-[#1b0e0e] shadow-sm hover:bg-[#e7d0d1] transition-colors"
               title="Normalize main criteria weights so they sum to 100%"
             >Rebalance Mains to 100%</button>
+
+            {/* Presets controls */}
+            <div className="h-9 flex items-center gap-2">
+              <input
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+                placeholder="New preset name"
+                className="h-9 rounded-xl px-3 text-sm border border-[#e7d0d1] bg-white/70 dark:bg-zinc-900/60 dark:border-zinc-800"
+              />
+              <button
+                onClick={createPresetFromCurrent}
+                className="h-9 rounded-xl px-3 text-sm bg-[#f3e7e8] text-[#1b0e0e] shadow-sm hover:bg-[#e7d0d1] transition-colors"
+                title="Create a preset from current weights"
+              >Save Preset</button>
+              <select
+                value={selectedPresetId}
+                onChange={(e) => setSelectedPresetId(e.target.value)}
+                className="h-9 rounded-xl px-3 text-sm border border-[#e7d0d1] bg-white/70 dark:bg-zinc-900/60 dark:border-zinc-800 min-w-40"
+                aria-label="Available presets"
+              >
+                <option value="">{presetsLoading ? "Loading presets..." : "Choose preset"}</option>
+                {presets.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} {p.weightsCount ? `(${p.weightsCount})` : ""}</option>
+                ))}
+              </select>
+              <button
+                disabled={!selectedPresetId || applyBusy}
+                onClick={applyPreset}
+                className="h-9 rounded-xl px-3 text-sm bg-[#994d51] text-white shadow-sm disabled:opacity-60"
+                title="Apply selected preset weights to criteria"
+              >{applyBusy ? "Applying..." : "Apply Preset"}</button>
+            </div>
           </div>
         </div>
 

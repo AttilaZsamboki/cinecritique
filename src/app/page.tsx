@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { evaluation, evaluationScore, criteria, movie } from "~/server/db/schema";
+import { evaluation, evaluationScore, criteria, movie, movieWeightedCache } from "~/server/db/schema";
 import { HydrateClient } from "~/trpc/server";
 import Link from "next/link";
 import { and, desc, eq, like, sql } from "drizzle-orm";
@@ -9,6 +9,7 @@ import CardActions from "./_components/CardActions";
 import HomeGalleryClient from "./_components/HomeGalleryClient";
 import CompareDock from "./_components/CompareDock";
 import LocalStatusFilters from "./_components/LocalStatusFilters";
+import { computeWeightedScores } from "~/server/score";
 
 export default async function Home({
   searchParams,
@@ -42,7 +43,7 @@ export default async function Home({
     minRating,
     sort = "weighted",
   } = await searchParams;
-  const currentPage = 1;
+  const currentPage = Math.max(parseInt(page || "1", 10) || 1, 1);
   const pageSize = 60;
   const yearFromNum = yearFrom ? Number(yearFrom) : undefined;
   const yearToNum = yearTo ? Number(yearTo) : undefined;
@@ -94,12 +95,24 @@ export default async function Home({
   // Step 2 — Query from the CTE and order by rating
   const movies = await db
     .with(moviesWithRatings)
-    .select()
+    .select({
+      id: moviesWithRatings.id,
+      title: moviesWithRatings.title,
+      posterUrl: moviesWithRatings.posterUrl,
+      genre: moviesWithRatings.genre,
+      type: moviesWithRatings.type,
+      director: moviesWithRatings.director,
+      actors: moviesWithRatings.actors,
+      year: moviesWithRatings.year,
+      rating: moviesWithRatings.rating,
+      weightedScore: movieWeightedCache.score,
+    })
     .from(moviesWithRatings)
+    .leftJoin(movieWeightedCache, eq(movieWeightedCache.movieId, moviesWithRatings.id))
     .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`)
-    .orderBy(desc(moviesWithRatings.rating))
+    .orderBy(desc(sql`COALESCE(${movieWeightedCache.score}, ${moviesWithRatings.rating})`))
     .limit(pageSize)
-    .offset(0);
+    .offset((currentPage - 1) * pageSize);
 
   // Get total count for pagination
   // Count with the same filters (including minRating) using the CTE
@@ -110,72 +123,17 @@ export default async function Home({
     .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`);
   const count = countRows[0]?.count ?? 0;
 
-  // Fetch all criteria, evaluations, and scores
+  // Fetch all criteria, evaluations, and scores and compute weighted results via shared utility
   const allCriteria = await db.select().from(criteria);
-  const evaluations = await db.select().from(evaluation);
-  const scores = await db.select().from(evaluationScore);
-
-  const mainCriteria = allCriteria.filter(c => !c.parentId);
-  const subCriteria = allCriteria.filter(c => c.parentId);
-
-  const movieEvaluations: Record<string, string[]> = {};
-  evaluations.forEach(ev => {
-    if (ev.movieId) {
-      if (!movieEvaluations[ev.movieId]) movieEvaluations[ev.movieId] = [];
-      movieEvaluations[ev.movieId]?.push(ev.id);
-    }
+  const evaluationsRows = await db.select().from(evaluation);
+  const scoresRows = await db.select().from(evaluationScore);
+  const { weighted: movieWeightedAverages, breakdown: movieMainBreakdown } = computeWeightedScores({
+    criteria: allCriteria,
+    evaluations: evaluationsRows,
+    scores: scoresRows,
+    movieIds: movies.map(m => m.id),
+    includeBreakdown: true,
   });
-
-  const evalScores: Record<string, { criteriaId: string; score: number }[]> = {};
-  scores.forEach(s => {
-    if (s.evaluationId) {
-      if (!evalScores[s.evaluationId]) evalScores[s.evaluationId] = [];
-      evalScores[s.evaluationId]?.push({
-        criteriaId: s.criteriaId ?? "",
-        score: Number(s.score),
-      });
-    }
-  });
-
-  const movieWeightedAverages: Record<string, number> = {};
-  const movieMainBreakdown: Record<string, { name: string; value: number }[]> = {};
-  for (const mv of movies) {
-    const evalIds = movieEvaluations[mv.id] || [];
-    let weightedSum = 0;
-    let totalWeight = 0;
-    const mainValues: { name: string; value: number }[] = [];
-    for (const main of mainCriteria) {
-      const subs = subCriteria.filter(sc => sc.parentId === main.id);
-      let subWeightedSum = 0;
-      let subTotalWeight = 0;
-      for (const sub of subs) {
-        const subScores: number[] = [];
-        for (const evalId of evalIds) {
-          const scoresForEval = evalScores[evalId] || [];
-          const found = scoresForEval.find(s => s.criteriaId === sub.id);
-          if (found) subScores.push(found.score);
-        }
-        if (subScores.length > 0 && sub.weight) {
-          const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
-          subWeightedSum += avg * sub.weight;
-          subTotalWeight += sub.weight;
-        }
-      }
-      if (subTotalWeight > 0 && main.weight) {
-        const mainValue = subWeightedSum / subTotalWeight;
-        weightedSum += mainValue * main.weight;
-        totalWeight += main.weight;
-        if (main.name) mainValues.push({ name: main.name, value: Math.round(mainValue * 10) / 10 });
-      }
-    }
-    if (totalWeight > 0) {
-      movieWeightedAverages[mv.id] =
-        Math.round((weightedSum / totalWeight) * 100) / 100;
-    }
-    movieMainBreakdown[mv.id] = mainValues
-      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-      .slice(0, 3);
-  }
 
   const sizeOpt: "small" | "big" = size === "small" || size === "big" ? (size as any) : "big";
   // Build query suffix to preserve filters in links

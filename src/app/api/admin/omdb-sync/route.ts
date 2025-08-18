@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { movie } from "~/server/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { auth } from "~/server/auth";
 
 // Minimal OMDb response typing
 type OmdbResponse = {
@@ -29,6 +30,9 @@ type OmdbResponse = {
 };
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if ((session.user as any).role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 500);
   const missingOnly = (searchParams.get("missingOnly") || "true") === "true";

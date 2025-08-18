@@ -2,6 +2,7 @@ import { db } from "~/server/db";
 import { bestOf, criteria, evaluation, evaluationScore, movie } from "~/server/db/schema";
 import Link from "next/link";
 import { BestOfCarousels } from "~/app/best-of/_components/BestOfCarousels";
+import { computeWeightedScores } from "~/server/score";
 
 export default async function BestOfPage({searchParams}: {searchParams: Promise<{view: string}>}) {
   const all = await db.select().from(bestOf);
@@ -14,58 +15,14 @@ export default async function BestOfPage({searchParams}: {searchParams: Promise<
   const subCriteria = allCriteria.filter(c => c.parentId);
 
 
-  const evalScores: Record<string, {criteriaId: string, score: number}[]> = {};
-  scores.forEach(s => {
-    if (s.evaluationId) {
-      if (!evalScores[s.evaluationId]) evalScores[s.evaluationId] = [];
-      evalScores[s.evaluationId]?.push({ criteriaId: s.criteriaId ?? '', score: Number(s.score) });
-    }
+  // Centralized weighted score per movie (0-5)
+  const { weighted: movieScores } = computeWeightedScores({
+    criteria: allCriteria,
+    evaluations,
+    scores,
+    movieIds: allMovies.map(m => m.id),
+    includeBreakdown: false,
   });
-
-  const movieEvaluations: Record<string, string[]> = {};
-  evaluations.forEach(ev => {
-    if (ev.movieId) {
-      if (!movieEvaluations[ev.movieId]) movieEvaluations[ev.movieId] = [];
-      movieEvaluations[ev.movieId]?.push(ev.id);
-    }
-  });
-  // Weighted score per movie (0-5)
-  const movieScores: Record<string, number> = {};
-  for (const movie of allMovies) {
-    const evalIds = movieEvaluations[movie.id] || [];
-    // For each main criteria, calculate weighted score
-    let weightedSum = 0;
-    let totalWeight = 0;
-    for (const main of mainCriteria) {
-      // Find all sub-criteria for this main
-      const subs = subCriteria.filter(sc => sc.parentId === main.id);
-      // For each sub-criteria, gather all scores for this movie
-      let subWeightedSum = 0;
-      let subTotalWeight = 0;
-      for (const sub of subs) {
-        const subScores: number[] = [];
-        for (const evalId of evalIds) {
-          const scoresForEval = evalScores[evalId] || [];
-          const found = scoresForEval.find(s => s.criteriaId === sub.id);
-          if (found) subScores.push(found.score);
-        }
-        if (subScores.length > 0 && sub.weight) {
-          const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
-          subWeightedSum += avg * sub.weight;
-          subTotalWeight += sub.weight;
-        }
-      }
-      // Main-criteria value is weighted sum of sub-criteria
-      if (subTotalWeight > 0 && main.weight) {
-        const mainValue = subWeightedSum / subTotalWeight;
-        weightedSum += mainValue * main.weight;
-        totalWeight += main.weight;
-      }
-    }
-    if (totalWeight > 0) {
-      movieScores[movie.id] = weightedSum / totalWeight;
-    }
-  }
 
   const criteriaById = Object.fromEntries(allCriteria.map(c => [c.id, c] as const));
   const movieById = Object.fromEntries(allMovies.map(m => [m.id, m] as const));

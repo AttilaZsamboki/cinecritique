@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
@@ -24,6 +25,8 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export default function Navbar() {
+  const { data } = useSession();
+  const user = data?.user as (typeof data extends any ? { id?: string; role?: string; name?: string | null } : never) | undefined;
   return (
     <header className="sticky top-0 z-50 w-full glass-strong shadow-elegant">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 sm:px-8 lg:px-40 py-4">
@@ -43,6 +46,14 @@ export default function Navbar() {
           <NavLink href="/best-of" label="Best Of" />
           <NavLink href="/best/people" label="Best People" />
           <NavLink href="/prestigious" label="Most Prestigious" />
+          {user?.role === "admin" && (
+            <Link
+              href="/admin"
+              className="px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-xl text-white bg-gradient-to-r from-[#6b4a4c] to-[#1b0e0e] hover:from-[#1b0e0e] hover:to-[#6b4a4c] shadow-elegant ml-2"
+            >
+              Admin
+            </Link>
+          )}
           <Link
             href="/new"
             className="ml-3 inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 animate-pulse-glow"
@@ -50,6 +61,25 @@ export default function Navbar() {
             <span className="mr-2">+</span>
             New Evaluation
           </Link>
+          <div className="ml-3 flex items-center gap-2">
+            {user ? (
+              <button
+                onClick={() => signOut()}
+                className="px-3 py-2 text-sm rounded-xl text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 transition-all duration-300"
+                title="Sign out"
+              >
+                Sign out
+              </button>
+            ) : (
+              <button
+                onClick={() => signIn()}
+                className="px-3 py-2 text-sm rounded-xl text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 transition-all duration-300"
+                title="Sign in"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
         </nav>
       </div>
     </header>

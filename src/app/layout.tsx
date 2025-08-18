@@ -7,6 +7,7 @@ import { TRPCReactProvider } from "~/trpc/react";
 import Navbar from "./_components/Navbar";
 import { Toaster } from "~/components/ui/toast";
 import PWARegister from "./_components/PWARegister";
+import AuthProvider from "./_components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "CineCritique",
@@ -25,13 +26,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${plusJakarta.variable}`}>
+    <html lang="en" className={`${plusJakarta.variable} dark:[color-scheme:dark]`}>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#994d51" />
+        <meta name="color-scheme" content="light dark" />
       </head>
-      <body className="min-h-screen bg-gradient-to-br from-[#fcf8f8] via-[#f9f2f3] to-[#f5e8e9]">
+      <body className="min-h-screen bg-gradient-to-br from-[#fcf8f8] via-[#f9f2f3] to-[#f5e8e9] dark:from-[#0b0b0c] dark:via-[#121214] dark:to-[#141316]">
         <TRPCReactProvider>
+          <AuthProvider>
           {/* Skip link for keyboard users */}
           <a
             href="#main"
@@ -45,6 +48,7 @@ export default function RootLayout({
           </main>
           <Toaster />
           <PWARegister />
+          </AuthProvider>
         </TRPCReactProvider>
       </body>
     </html>

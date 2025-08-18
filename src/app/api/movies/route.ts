@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
-import { evaluation, evaluationScore, criteria, movie } from "~/server/db/schema";
+import { evaluation, evaluationScore, criteria, movie, movieWeightedCache } from "~/server/db/schema";
 import { and, desc, eq, like, sql } from "drizzle-orm";
+import { computeWeightedScores } from "~/server/score";
+import { auth } from "~/server/auth";
 
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = session.user.id as string;
   const { searchParams } = new URL(request.url);
   const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
   const pageSize = Math.min(Math.max(parseInt(searchParams.get("pageSize") || "60", 10) || 60, 1), 200);
@@ -38,7 +45,7 @@ export async function GET(request: Request) {
             SELECT ROUND(AVG(es.score), 2)
             FROM ${evaluationScore} es
             JOIN ${evaluation} e ON e.id = es.evaluation_id
-            WHERE e.movie_id = ${sql`${movie.id}`}
+            WHERE e.movie_id = ${sql`${movie.id}`} AND e.user_id = ${userId}
           ), 0)
         `.as('rating'),
       })
@@ -59,7 +66,17 @@ export async function GET(request: Request) {
 
   const movies = await db
     .with(moviesWithRatings)
-    .select()
+    .select({
+      id: moviesWithRatings.id,
+      title: moviesWithRatings.title,
+      posterUrl: moviesWithRatings.posterUrl,
+      genre: moviesWithRatings.genre,
+      type: moviesWithRatings.type,
+      director: moviesWithRatings.director,
+      actors: moviesWithRatings.actors,
+      year: moviesWithRatings.year,
+      rating: moviesWithRatings.rating,
+    })
     .from(moviesWithRatings)
     .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`)
     .orderBy(desc(moviesWithRatings.rating))
@@ -75,64 +92,16 @@ export async function GET(request: Request) {
 
   // Fetch all criteria, evaluations, and scores to compute weighted ratings and breakdown
   const allCriteria = await db.select().from(criteria);
-  const evaluationsRows = await db.select().from(evaluation);
+  const evaluationsRows = await db.select().from(evaluation).where(eq(evaluation.userId, userId));
   const scoresRows = await db.select().from(evaluationScore);
 
-  const mainCriteria = allCriteria.filter(c => !c.parentId);
-  const subCriteria = allCriteria.filter(c => c.parentId);
-
-  const movieEvaluations: Record<string, string[]> = {};
-  evaluationsRows.forEach(ev => {
-    if (ev.movieId) {
-      if (!movieEvaluations[ev.movieId]) movieEvaluations[ev.movieId] = [];
-      movieEvaluations[ev.movieId]?.push(ev.id);
-    }
+  const { weighted, breakdown } = computeWeightedScores({
+    criteria: allCriteria,
+    evaluations: evaluationsRows,
+    scores: scoresRows,
+    movieIds: movies.map((m) => m.id),
+    includeBreakdown: true,
   });
-
-  const evalScores: Record<string, { criteriaId: string; score: number }[]> = {};
-  scoresRows.forEach(s => {
-    if (s.evaluationId) {
-      if (!evalScores[s.evaluationId]) evalScores[s.evaluationId] = [];
-      evalScores[s.evaluationId]?.push({ criteriaId: s.criteriaId ?? "", score: Number(s.score) });
-    }
-  });
-
-  const weighted: Record<string, number> = {};
-  const breakdown: Record<string, { name: string; value: number }[]> = {};
-  for (const mv of movies) {
-    const evalIds = movieEvaluations[mv.id] || [];
-    let weightedSum = 0;
-    let totalWeight = 0;
-    const mainValues: { name: string; value: number }[] = [];
-    for (const main of mainCriteria) {
-      const subs = subCriteria.filter(sc => sc.parentId === main.id);
-      let subWeightedSum = 0;
-      let subTotalWeight = 0;
-      for (const sub of subs) {
-        const subScores: number[] = [];
-        for (const evalId of evalIds) {
-          const scoresForEval = evalScores[evalId] || [];
-          const found = scoresForEval.find(s => s.criteriaId === sub.id);
-          if (found) subScores.push(found.score);
-        }
-        if (subScores.length > 0 && sub.weight) {
-          const avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
-          subWeightedSum += avg * sub.weight;
-          subTotalWeight += sub.weight;
-        }
-      }
-      if (subTotalWeight > 0 && main.weight) {
-        const mainValue = subWeightedSum / subTotalWeight;
-        weightedSum += mainValue * main.weight;
-        totalWeight += main.weight;
-        if (main.name) mainValues.push({ name: main.name, value: Math.round(mainValue * 10) / 10 });
-      }
-    }
-    if (totalWeight > 0) {
-      weighted[mv.id] = Math.round((weightedSum / totalWeight) * 100) / 100;
-    }
-    breakdown[mv.id] = mainValues.sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 3);
-  }
 
   return NextResponse.json({ movies, count, weighted, breakdown });
 }

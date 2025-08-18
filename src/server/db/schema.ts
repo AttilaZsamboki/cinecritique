@@ -12,6 +12,45 @@ import { pgTableCreator } from "drizzle-orm/pg-core";
  */
 export const createTable = pgTableCreator((name) => `cinecritique_${name}`);
 
+// Auth.js (NextAuth) core tables with a custom Users table that includes a role column
+// Based on @auth/drizzle-adapter Postgres schema
+export const users = createTable("users", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: d.text("name"),
+  email: d.text("email").unique(),
+  emailVerified: d.timestamp("email_verified"),
+  image: d.text("image"),
+  role: d.text("role").default(sql`'user'`), // 'user' | 'admin'
+}));
+
+export const accounts = createTable("accounts", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: d.text("user_id").notNull().references(() => users.id),
+  type: d.text("type").notNull(),
+  provider: d.text("provider").notNull(),
+  providerAccountId: d.text("provider_account_id").notNull(),
+  refresh_token: d.text("refresh_token"),
+  access_token: d.text("access_token"),
+  expires_at: d.integer("expires_at"),
+  token_type: d.text("token_type"),
+  scope: d.text("scope"),
+  id_token: d.text("id_token"),
+  session_state: d.text("session_state"),
+}));
+
+export const sessions = createTable("sessions", (d) => ({
+  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionToken: d.text("session_token").notNull().unique(),
+  userId: d.text("user_id").notNull().references(() => users.id),
+  expires: d.timestamp("expires").notNull(),
+}));
+
+export const verificationTokens = createTable("verification_token", (d) => ({
+  identifier: d.text("identifier").notNull(),
+  token: d.text("token").notNull().unique(),
+  expires: d.timestamp("expires").notNull(),
+}));
+
 export const criteria = createTable(
   "criteria",
   (d) => ({
@@ -52,6 +91,7 @@ export const movie = createTable("movie", (d) => ({
 export const evaluation = createTable("evaluation", (d) => ({
   id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
   movieId: d.text("movie_id").references(() => movie.id),
+  userId: d.text("user_id").references(() => users.id),
   date: d.timestamp("date"),
 }));
 
@@ -70,6 +110,7 @@ export const bestOf = createTable("best_of", (d) => ({
   clipUrl: d.text("clip_url"),
   position: d.integer("position"),
   createdAt: d.timestamp("created_at").default(sql`now()`),
+  userId: d.text("user_id").references(() => users.id), // per-user picks
 }));
 
 // Per-movie override to include or exclude a criterion
@@ -79,6 +120,7 @@ export const movieCriteriaOverride = createTable("movie_criteria_override", (d) 
   criteriaId: d.text("criteria_id").references(() => criteria.id),
   mode: d.text("mode"), // 'include' | 'exclude'
   createdAt: d.timestamp("created_at").default(sql`now()`),
+  userId: d.text("user_id").references(() => users.id), // per-user overrides
 }));
 
 // Default applicability rules per criterion. CSV fields kept simple for now.
@@ -99,6 +141,8 @@ export const criteriaPreset = createTable("criteria_preset", (d) => ({
   name: d.text("name").notNull(),
   description: d.text("description"),
   createdAt: d.timestamp("created_at").default(sql`now()`),
+  createdBy: d.text("created_by").references(() => users.id),
+  isGlobal: d.boolean("is_global").default(sql`false`), // only admins can set true
 }));
 
 export const criteriaPresetWeight = createTable("criteria_preset_weight", (d) => ({
@@ -107,4 +151,11 @@ export const criteriaPresetWeight = createTable("criteria_preset_weight", (d) =>
   criteriaId: d.text("criteria_id").references(() => criteria.id),
   weight: d.integer("weight").notNull(),
   createdAt: d.timestamp("created_at").default(sql`now()`),
+}));
+
+// Cache for per-movie weighted scores (materialized by a background job or admin endpoint)
+export const movieWeightedCache = createTable("movie_weighted_cache", (d) => ({
+  movieId: d.text("movie_id").primaryKey().references(() => movie.id),
+  score: d.numeric("score", { precision: 3, scale: 1 }).notNull(),
+  breakdownJson: d.text("breakdown_json"),
 }));

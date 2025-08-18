@@ -11,6 +11,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { db } from "~/server/db";
+import { getServerAuth } from "~/server/auth";
 
 /**
  * 1. CONTEXT
@@ -25,8 +26,10 @@ import { db } from "~/server/db";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
+  const session = await getServerAuth();
   return {
     db,
+    session,
     ...opts,
   };
 };
@@ -104,3 +107,12 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  * are logged in.
  */
 export const publicProcedure = t.procedure.use(timingMiddleware);
+
+// Require authentication
+export const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  const userId = (ctx.session?.user as any)?.id as string | undefined;
+  if (!userId) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return next({ ctx: { session: ctx.session } });
+});
