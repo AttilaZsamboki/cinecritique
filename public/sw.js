@@ -1,4 +1,7 @@
+/// <reference lib="webworker" />
 /* Simple SW for CineCritique: cache shell + runtime cache for search API */
+/** @type {ServiceWorkerGlobalScope} */
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
 const CACHE_PREFIX = 'cinecritique-cache-v1';
 const RUNTIME_CACHE = `${CACHE_PREFIX}-runtime`;
 const PRECACHE = `${CACHE_PREFIX}-precache`;
@@ -9,20 +12,23 @@ const PRECACHE_URLS = [
   '/manifest.webmanifest',
 ];
 
-self.addEventListener('install', (event) => {
+sw.addEventListener('install', /** @param {ExtendableEvent} event */ (event) => {
   event.waitUntil(
-    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting())
+    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => sw.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (event) => {
+sw.addEventListener('activate', /** @param {ExtendableEvent} event */ (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
       keys.filter((k) => !k.startsWith(CACHE_PREFIX)).map((k) => caches.delete(k))
-    )).then(() => self.clients.claim())
+    )).then(() => sw.clients.claim())
   );
 });
 
+/**
+ * @param {Request} req
+ */
 function isApiMoviesRequest(req) {
   try {
     const url = new URL(req.url);
@@ -30,6 +36,9 @@ function isApiMoviesRequest(req) {
   } catch { return false; }
 }
 
+/**
+ * @param {Request} req
+ */
 function isStaticAsset(req) {
   try {
     const url = new URL(req.url);
@@ -37,7 +46,7 @@ function isStaticAsset(req) {
   } catch { return false; }
 }
 
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', /** @param {FetchEvent} event */ (event) => {
   const { request } = event;
   // Only handle GET
   if (request.method !== 'GET') return;
@@ -47,12 +56,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(RUNTIME_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        const network = fetch(request).then((res) => {
+        if (cached) return cached;
+        try {
+          const res = await fetch(request);
           if (res && res.status === 200) cache.put(request, res.clone());
           return res;
-        }).catch(() => undefined);
-        // Serve cached immediately if present; otherwise wait for network
-        return cached || network || new Response(JSON.stringify({ movies: [], count: 0, weighted: {}, breakdown: {} }), { headers: { 'Content-Type': 'application/json' }, status: 200 });
+        } catch {
+          return new Response(
+            JSON.stringify({ movies: [], count: 0, weighted: {}, breakdown: {} }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
       })
     );
     return;
@@ -79,7 +93,7 @@ self.addEventListener('fetch', (event) => {
   // For navigation requests, try network then cache, then fall back to offline shell
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/'))
+      fetch(request).catch(() => caches.match('/').then((res) => res ?? Response.error()))
     );
   }
 });

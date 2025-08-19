@@ -8,7 +8,7 @@ export async function GET() {
   const weights = await db.select().from(criteriaPresetWeight);
   const byPreset = new Map<string, number>();
   for (const w of weights) {
-    byPreset.set(w.presetId, (byPreset.get(w.presetId) || 0) + 1);
+    byPreset.set(w.presetId??"", (byPreset.get(w.presetId??"") || 0) + 1);
   }
   return NextResponse.json({
     presets: presets.map((p) => ({ ...p, weightsCount: byPreset.get(p.id) || 0 })),
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const description = (body?.description as string) || null;
 
   const inserted = await db.insert(criteriaPreset).values({ name, description: description as any }).returning({ id: criteriaPreset.id });
-  const presetId = inserted[0].id;
+  const presetId = inserted[0]?.id;
 
   const crits = await db.select().from(criteria);
   if (crits.length) {

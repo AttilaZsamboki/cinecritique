@@ -389,15 +389,15 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
     <div className="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
       <div className="layout-container flex h-full grow flex-col">
         <div className="px-4 sm:px-8 lg:px-40 flex flex-1 justify-center py-8">
-          <div className="layout-content-container flex flex-col max-w-[1200px] flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
-              <p className="text-[#1b0e0e] text-2xl font-bold leading-tight">Edit: {movie.title}</p>
-              <div className="flex items-center gap-3">
+          <div className="layout-content-container flex flex-col max-w-[1200px] flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 bg-white/60 rounded-2xl border border-white/20 shadow-sm mb-4">
+              <p className="text-[#1b0e0e] text-2xl font-bold leading-tight break-words min-w-0">Edit: {movie.title}</p>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <CardActions movieId={movie.id} />
                 <input
                   type="url"
                   placeholder="Poster URL"
-                  className="h-9 w-64 rounded-xl border border-[#e7d0d1] bg-white/80 px-3 text-sm shadow-sm"
+                  className="h-9 w-full sm:w-64 rounded-xl border border-[#e7d0d1] bg-white/80 px-3 text-sm shadow-sm min-w-0"
                   defaultValue={movie.posterUrl ?? ""}
                   onBlur={(e) => {
                     const val = e.currentTarget.value.trim();
@@ -459,6 +459,15 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                     return toPoint(i, v01);
                   });
                   const polygon = points.map(p => `${p.x},${p.y}`).join(" ");
+                  // Determine which main-criterion edges should be highlighted (movie appears in curated Top 10 under that main)
+                  const hasTop10ByMain = entries.map((e) => {
+                    const subs = subCriteria.filter(sc => sc.parentId === e.id);
+                    for (const s of subs) {
+                      const entry = curatedForThisMovie.get(String(s.id));
+                      if (entry && typeof entry.position === 'number' && entry.position <= 9) return true; // Top 10 (0-based position)
+                    }
+                    return false;
+                  });
                   const axes = entries.map((_, i) => {
                     const p = toPoint(i, 1);
                     return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#e7d0d1" strokeWidth={1} />
@@ -471,10 +480,30 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                       <svg width={size} height={size} className="shrink-0">
                         {rings}
                         {axes}
-                        <polygon points={polygon} fill="#994d51" fillOpacity={0.25} stroke="#994d51" strokeWidth={2} />
-                        {points.map((p, i) => (
-                          <circle key={i} cx={p.x} cy={p.y} r={3} fill="#7a3d41" />
-                        ))}
+                        {/* Fill polygon without stroke */}
+                        <polygon points={polygon} fill="#14b8a6" fillOpacity={0.25} stroke="none" />
+                        {/* Per-edge strokes with conditional highlight (teal when in curated Top 10) */}
+                        {points.map((p, i) => {
+                          const q = points[(i + 1) % N]!;
+                          const highlight = hasTop10ByMain[i];
+                          const color = highlight ? '#14b8a6' /* teal-500 */ : '#994d51';
+                          return (
+                            <line
+                              key={`edge-${i}`}
+                              x1={p.x}
+                              y1={p.y}
+                              x2={q.x}
+                              y2={q.y}
+                              stroke={color}
+                              strokeWidth={2}
+                            />
+                          );
+                        })}
+                        {points.map((p, i) => {
+                          const highlight = hasTop10ByMain[i];
+                          return (
+                          <circle key={i} cx={p.x} cy={p.y} r={3} fill={highlight ? "#14b8a6" : "#7a3d41"} />
+                        )})}
                       </svg>
                       <div className="grid grid-cols-2 gap-1 text-xs text-[#1b0e0e]">
                         {entries.map((e, i) => (
@@ -548,11 +577,11 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
                 </div>
                 {subCriteria.filter(sc => sc.parentId === main.id).map(sub => (
                   <div className="@container" key={sub.id}>
-                    <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center">
-                      <div className={`flex w-full shrink-[3] items-center justify-between rounded-xl ${guided && currentSubId === sub.id ? 'ring-2 ring-[#994d51] ring-offset-2 ring-offset-white/60' : ''}`}>
+                    <div className="relative flex w-full flex-col items-start justify-between gap-3 p-4 @[480px]:flex-row @[480px]:items-center min-w-0">
+                      <div className={`flex w-full shrink-[3] items-center justify-between rounded-xl min-w-0 ${guided && currentSubId === sub.id ? 'ring-2 ring-[#994d51] ring-offset-2 ring-offset-white/60' : ''}`}>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className="text-[#1b0e0e] cursor-pointer text-base font-medium leading-normal">{sub.name}</p>
+                              <p className="text-[#1b0e0e] cursor-pointer text-base font-medium leading-normal truncate" title={sub.name ?? undefined}>{sub.name}</p>
                             </TooltipTrigger>
                             <TooltipContent >
                               {sub.description}
@@ -631,7 +660,7 @@ export default function MovieDetailsClient({ movieId }: { movieId: string }) {
       </div>
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[520px] rounded-2xl bg-white p-5 shadow-xl">
+          <div className="w-full max-w-[520px] mx-4 rounded-2xl bg-white p-5 shadow-xl">
             <h4 className="text-lg font-bold mb-2">Add to Curated</h4>
             <p className="text-sm text-[#1b0e0e] mb-3">This will add <strong>{movie.title}</strong> to the curated top list for <strong>{criteriaById[confirm.criteriaId]?.name ?? "this category"}</strong>.</p>
             <div className="mb-3">

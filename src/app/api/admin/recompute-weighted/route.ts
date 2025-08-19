@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { criteria, evaluation, evaluationScore, movie, movieWeightedCache } from "~/server/db/schema";
 import { computeWeightedScores } from "~/server/score";
-import { auth } from "~/server/auth";
+import { getServerAuth } from "~/server/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const session = await auth();
+  const session = await getServerAuth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if ((session.user as any).role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   // Load everything

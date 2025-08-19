@@ -3,6 +3,7 @@ import { inArray } from "drizzle-orm";
 import { criteria, evaluation, evaluationScore, movie } from "~/server/db/schema";
 import { InteractiveCard } from "~/components/ui/InteractiveCard";
 import Link from "next/link";
+import PresetCompare from "../_components/PresetCompare";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,57 @@ function parseBoxOffice(v?: string | null): number | undefined {
   if (!m) return undefined;
   const n = Number(m);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function Heatmap({ data }: { data: { rows: { id: string; name: string }[]; cols: string[]; values: number[][] } }) {
+  const { rows, cols, values } = data;
+  const flat = values.flat().filter((v) => Number.isFinite(v)) as number[];
+  const min = flat.length ? Math.min(...flat) : 0;
+  const max = flat.length ? Math.max(...flat) : 10;
+  const color = (v: number) => {
+    if (!Number.isFinite(v)) return "#f3e7e8";
+    const t = (v - min) / Math.max(1e-6, max - min);
+    // Interpolate between light pink -> brand burgundy
+    const from = [243, 231, 232]; // #f3e7e8
+    const to = [153, 77, 81]; // #994d51
+    const c = from.map((f, i) => Math.round(f + (to[i]! - f) * t));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="text-[#6b4a4c]">
+            <th className="py-2 pr-3 text-left">Criteria</th>
+            {cols.map((c) => (
+              <th key={c} className="py-2 px-2 whitespace-nowrap text-left">{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/40">
+          {rows.map((r, ri) => (
+            <tr key={r.id}>
+              <td className="py-2 pr-3 text-[#1b0e0e] whitespace-nowrap">{r.name}</td>
+              {cols.map((_, ci) => {
+                const v = values[ri]?.[ci];
+                return (
+                  <td key={ci} className="py-1 px-1">
+                    <div
+                      className="h-6 w-16 rounded-md text-[10px] flex items-center justify-center text-[#1b0e0e]"
+                      style={{ background: color(v as number) }}
+                      title={Number.isFinite(v) ? String(v) : "No data"}
+                    >
+                      {Number.isFinite(v) ? (v as number).toFixed(1) : "–"}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function parseAwards(v?: string | null): { oscarsWon: number; oscarsNominated: number; wins: number; nominations: number } {
@@ -157,6 +209,30 @@ export default async function Dashboard() {
     return rows.slice(0, 12);
   })();
 
+  // Heatmap data: main criteria (rows) x top genres (cols) using per-movie computed mainVals
+  const heatmap = (() => {
+    if (!genres.length) return null as null | { rows: { id: string; name: string }[]; cols: string[]; values: number[][] };
+    const cols = genres.map((g) => g.name);
+    const rows = mainCriteria.map((mc) => ({ id: String(mc.id), name: String(mc.name) }));
+    const values: number[][] = rows.map(() => cols.map(() => NaN));
+    // Map genres per movie
+    for (let ri = 0; ri < rows.length; ri++) {
+      const mcId = rows[ri]!.id;
+      for (let ci = 0; ci < cols.length; ci++) {
+        const col = cols[ci]!;
+        const vals: number[] = [];
+        for (const m of movies) {
+          const gs = (m.genre ?? "").split(/,\s*/).filter(Boolean);
+          if (!gs.includes(col)) continue;
+          const mv = computed[String(m.id)]?.mainVals[mcId];
+          if (typeof mv === "number" && Number.isFinite(mv)) vals.push(mv);
+        }
+        values[ri]![ci] = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : NaN;
+      }
+    }
+    return { rows, cols, values };
+  })();
+
   const perCriteria = (() => {
     return mainCriteria
       .map((main) => {
@@ -225,6 +301,16 @@ export default async function Dashboard() {
                 )}
               </InteractiveCard>
 
+              {/* Criteria x Genre Heatmap */}
+              <InteractiveCard className="glass-strong border border-white/40 p-4 lg:col-span-2">
+                <h3 className="text-sm font-semibold text-[#1b0e0e] mb-2">Criteria × Genre Heatmap</h3>
+                {heatmap ? (
+                  <Heatmap data={heatmap} />
+                ) : (
+                  <div className="text-[#6b4a4c] text-sm">Not enough data.</div>
+                )}
+              </InteractiveCard>
+
               {/* Top Box Office */}
               <InteractiveCard className="glass-strong border border-white/40 p-4 lg:col-span-2">
                 <h3 className="text-sm font-semibold text-[#1b0e0e] mb-2">Top Box Office</h3>
@@ -267,6 +353,12 @@ export default async function Dashboard() {
                 ) : (
                   <div className="text-[#6b4a4c] text-sm">No awards data.</div>
                 )}
+              </InteractiveCard>
+
+              {/* Compare Presets */}
+              <InteractiveCard className="glass-strong border border-white/40 p-4 lg:col-span-2">
+                <h3 className="text-sm font-semibold text-[#1b0e0e] mb-2">Compare Presets</h3>
+                <PresetCompare />
               </InteractiveCard>
             </div>
           </div>

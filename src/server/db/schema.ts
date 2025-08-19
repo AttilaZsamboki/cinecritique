@@ -39,8 +39,7 @@ export const accounts = createTable("accounts", (d) => ({
 }));
 
 export const sessions = createTable("sessions", (d) => ({
-  id: d.text("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionToken: d.text("session_token").notNull().unique(),
+  sessionToken: d.text("session_token").primaryKey(),
   userId: d.text("user_id").notNull().references(() => users.id),
   expires: d.timestamp("expires").notNull(),
 }));

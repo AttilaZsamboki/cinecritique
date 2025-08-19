@@ -1,5 +1,5 @@
 import { db } from "~/server/db";
-import { evaluation, evaluationScore, criteria, movie, movieWeightedCache, movieGenre, genre as genreTable } from "~/server/db/schema";
+import { evaluation, evaluationScore, criteria, movie, movieWeightedCache, movieGenre, genre as genreTable, bestOf } from "~/server/db/schema";
 import { HydrateClient } from "~/trpc/server";
 import Link from "next/link";
 import { and, desc, eq, like, sql } from "drizzle-orm";
@@ -100,9 +100,21 @@ export default async function Home({
       )
   );
 
-  // Step 2 — Query from the CTE and order by rating
+  // Aggregate curated prestige from best_of per movie
+  const bestOfAgg = db.$with('best_of_agg').as(
+    db
+      .select({
+        movieId: bestOf.movieId,
+        prestigeCount: sql<number>`COUNT(*)`.as('prestigeCount'),
+        prestigeScore: sql<number>`SUM(CASE WHEN ${bestOf.position} IS NULL THEN 1 ELSE GREATEST(0, 10 - ${bestOf.position}) END)`.as('prestigeScore'),
+      })
+      .from(bestOf)
+      .groupBy(bestOf.movieId)
+  );
+
+  // Step 2 — Query from the CTEs and order by weighted score with prestige tiebreakers
   const movies = await db
-    .with(moviesWithRatings)
+    .with(moviesWithRatings, bestOfAgg)
     .select({
       id: moviesWithRatings.id,
       title: moviesWithRatings.title,
@@ -114,11 +126,21 @@ export default async function Home({
       year: moviesWithRatings.year,
       rating: moviesWithRatings.rating,
       weightedScore: movieWeightedCache.score,
+      prestigeCount: sql<number>`COALESCE(${bestOfAgg.prestigeCount}, 0)`.as('prestigeCount'),
+      prestigeScore: sql<number>`COALESCE(${bestOfAgg.prestigeScore}, 0)`.as('prestigeScore'),
     })
     .from(moviesWithRatings)
     .leftJoin(movieWeightedCache, eq(movieWeightedCache.movieId, moviesWithRatings.id))
+    .leftJoin(bestOfAgg, eq(bestOfAgg.movieId, moviesWithRatings.id))
     .where(minRatingNum !== undefined ? sql`${moviesWithRatings.rating} >= ${minRatingNum}` : sql`TRUE`)
-    .orderBy(desc(sql`COALESCE(${movieWeightedCache.score}, ${moviesWithRatings.rating})`))
+    .orderBy(
+      desc(sql`COALESCE(${movieWeightedCache.score}, ${moviesWithRatings.rating})`),
+      desc(sql`COALESCE(${bestOfAgg.prestigeScore}, 0)`),
+      desc(sql`COALESCE(${bestOfAgg.prestigeCount}, 0)`),
+      desc(moviesWithRatings.rating),
+      // Light final tiebreaker by title for stability
+      sql`LOWER(${moviesWithRatings.title})`
+    )
     .limit(pageSize)
     .offset((currentPage - 1) * pageSize);
 

@@ -1413,10 +1413,10 @@ export const movieRouter = createTRPCRouter({
         };
         for (const role of roles) {
           const names = perRoleNames[role];
-          if (names.some((n) => eqName(n, personName))) {
+          if (names?.some((n) => eqName(n, personName))) {
             const info: MovieInfo = { id: mvId, title: mv.title ?? null, year: mv.year ?? null, posterUrl: mv.posterUrl ?? null, score: overall };
             if (role === "actor" && input.actorCriteriaId) info.actorScore = actorSubScoreByMovie[mvId];
-            byRole[role].push(info);
+            byRole[role]?.push(info);
             seenMovies.add(mvId);
           }
         }
@@ -1429,7 +1429,7 @@ export const movieRouter = createTRPCRouter({
         if (sa !== sb) return sb - sa;
         return (a.title ?? "").localeCompare(b.title ?? "");
       };
-      for (const r of roles) byRole[r].sort(sorter);
+      for (const r of roles) byRole[r]?.sort(sorter);
 
       const allInvolved = Array.from(seenMovies);
       const avg = allInvolved.length > 0
@@ -1456,10 +1456,10 @@ export const movieRouter = createTRPCRouter({
       return {
         name: personName,
         average: avg,
-        counts: { actor: byRole.actor.length, writer: byRole.writer.length, director: byRole.director.length },
-        actor: byRole.actor.slice(0, input.maxPerRole ?? 12),
-        writer: byRole.writer.slice(0, input.maxPerRole ?? 12),
-        director: byRole.director.slice(0, input.maxPerRole ?? 12),
+        counts: { actor: byRole.actor?.length, writer: byRole.writer?.length, director: byRole.director?.length },
+        actor: byRole.actor?.slice(0, input.maxPerRole ?? 12),
+        writer: byRole.writer?.slice(0, input.maxPerRole ?? 12),
+        director: byRole.director?.slice(0, input.maxPerRole ?? 12),
         criteriaStrengths: strengths,
       };
     }),

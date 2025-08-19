@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { useState } from "react";
 
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
@@ -10,7 +11,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className={`px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-xl relative overflow-hidden group ${
+      className={`px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-xl relative overflow-hidden group whitespace-nowrap ${
         isActive
           ? "text-white bg-gradient-to-r from-[#994d51] to-[#7a3d41] shadow-elegant"
           : "text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 hover:shadow-sm hover:scale-105"
@@ -19,17 +20,18 @@ function NavLink({ href, label }: { href: string; label: string }) {
       {!isActive && (
         <div className="absolute inset-0 bg-gradient-to-r from-[#994d51]/10 to-[#7a3d41]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       )}
-      <span className="relative z-10">{label}</span>
+      <span className="relative z-10 whitespace-nowrap">{label}</span>
     </Link>
   );
 }
 
 export default function Navbar() {
   const { data } = useSession();
+  const [open, setOpen] = useState(false);
   const user = data?.user as (typeof data extends any ? { id?: string; role?: string; name?: string | null } : never) | undefined;
   return (
     <header className="sticky top-0 z-50 w-full glass-strong shadow-elegant">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 sm:px-8 lg:px-40 py-4">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 sm:px-8 lg:px-24 py-4">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="text-[#994d51] transition-transform duration-300 group-hover:scale-110 animate-float">
             <svg viewBox="0 0 48 48" width="28" height="28" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +42,20 @@ export default function Navbar() {
             CineCritique
           </h1>
         </Link>
-        <nav className="flex items-center gap-1 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap scrollbar-thin">
+        {/* Mobile menu button */}
+        <button
+          className="md:hidden inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 transition-all duration-300"
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+          onClick={() => setOpen((v) => !v)}
+          title="Toggle menu"
+        >
+          <span className="i-lucide-menu size-4" aria-hidden />
+          Menu
+        </button>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1 max-w-full overflow-x-auto scrollbar-thin">
           <NavLink href="/" label="Home" />
           <NavLink href="/criteria" label="Criteria" />
           <NavLink href="/best-of" label="Best Of" />
@@ -56,7 +71,7 @@ export default function Navbar() {
           )}
           <Link
             href="/new"
-            className="ml-3 inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 animate-pulse-glow"
+            className="ml-3 inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant hover:shadow-elegant-lg hover:scale-105 animate-pulse-glow whitespace-nowrap"
           >
             <span className="mr-2">+</span>
             New Evaluation
@@ -82,8 +97,54 @@ export default function Navbar() {
           </div>
         </nav>
       </div>
+      {/* Mobile collapsible panel */}
+      {open && (
+        <div id="mobile-nav" className="md:hidden border-t border-white/30">
+          <div className="mx-auto max-w-[1200px] px-4 sm:px-8 lg:px-24 py-3">
+            <div className="flex flex-wrap gap-2">
+              <NavLink href="/" label="Home" />
+              <NavLink href="/criteria" label="Criteria" />
+              <NavLink href="/best-of" label="Best Of" />
+              <NavLink href="/best/people" label="Best People" />
+              <NavLink href="/prestigious" label="Most Prestigious" />
+              {user?.role === "admin" && (
+                <Link
+                  href="/admin"
+                  className="px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-xl text-white bg-gradient-to-r from-[#6b4a4c] to-[#1b0e0e] hover:from-[#1b0e0e] hover:to-[#6b4a4c] shadow-elegant"
+                >
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/new"
+                className="inline-flex items-center h-10 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-r from-[#e92932] to-[#c61f27] hover:from-[#c61f27] hover:to-[#a01a21] transition-all duration-300 shadow-elegant whitespace-nowrap"
+              >
+                <span className="mr-2">+</span>
+                New Evaluation
+              </Link>
+              <div className="flex items-center gap-2 ml-auto">
+                {user ? (
+                  <button
+                    onClick={() => signOut()}
+                    className="px-3 py-2 text-sm rounded-xl text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 transition-all duration-300"
+                    title="Sign out"
+                  >
+                    Sign out
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => signIn()}
+                    className="px-3 py-2 text-sm rounded-xl text-[#6b4a4c] hover:text-[#994d51] hover:bg-white/60 transition-all duration-300"
+                    title="Sign in"
+                  >
+                    Sign in
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
-
-

@@ -377,20 +377,20 @@ function TopYearsList({ years }: { years: number[] }) {
   );
 }
 
-function RoleBreakdownBars({ counts }: { counts: { actor: number; writer: number; director: number } }) {
-  const entries: Array<{ label: string; value: number; color: string }> = [
+function RoleBreakdownBars({ counts }: { counts: { actor?: number; writer?: number; director?: number } }) {
+  const entries: Array<{ label: string; value?: number; color: string }> = [
     { label: 'Actor', value: counts.actor, color: '#994d51' },
     { label: 'Director', value: counts.director, color: '#7a3d41' },
     { label: 'Writer', value: counts.writer, color: '#b86a70' },
   ];
-  const max = Math.max(1, ...entries.map(e => e.value));
+  const max = Math.max(1, ...entries.map(e => e.value??0));
   return (
     <div className="space-y-2">
       {entries.map((e) => (
         <div key={e.label} className="flex items-center gap-3 text-xs text-[#1b0e0e]">
           <div className="w-20">{e.label}</div>
           <div className="h-2 flex-1 rounded-full bg-[#f3e7e8] overflow-hidden">
-            <div className="h-full" style={{ width: `${(e.value / max) * 100}%`, background: e.color }} />
+            <div className="h-full" style={{ width: `${(e.value??0 / max) * 100}%`, background: e.color }} />
           </div>
           <div className="w-8 text-right tabular-nums">{e.value}</div>
         </div>

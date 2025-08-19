@@ -185,11 +185,11 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
                             {computed[m.id]?.overall !== undefined && (
                               <div className="mt-1 flex items-center gap-2">
                                 <div className="h-2 w-28 rounded-full bg-[#e7d0d1] overflow-hidden">
-                                  <div className="h-full bg-[#994d51]" style={{ width: `${(computed[m.id].overall ?? 0) * 20}%` }} />
+                                  <div className="h-full bg-[#994d51]" style={{ width: `${(computed[m.id]?.overall ?? 0) * 20}%` }} />
                                 </div>
                                 <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#994d51] to-[#7a3d41] text-white px-2 py-0.5 text-[10px] font-bold">
                                   <span>⭐</span>
-                                  <span>{computed[m.id].overall?.toFixed(1)}</span>
+                                  <span>{computed[m.id]?.overall?.toFixed(1)}</span>
                                 </span>
                               </div>
                             )}

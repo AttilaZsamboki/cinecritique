@@ -26,7 +26,6 @@ export const authOptions: NextAuthOptions = {
   }),
   // Use database sessions since we created the table
   session: { strategy: "database" },
-  trustHost: true,
   secret: env.AUTH_SECRET,
   providers: [
     GitHub({
